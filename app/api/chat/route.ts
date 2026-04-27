@@ -53,9 +53,7 @@ async function llm(
       model, 
       messages, 
       stream: false, 
-      max_tokens: maxTokens, 
-      usage: { include: true },
-      include_reasoning: false 
+      max_tokens: maxTokens 
     }),
   });
   if (!res.ok) {
@@ -64,7 +62,7 @@ async function llm(
   }
   const data = await res.json();
   const text = data.choices?.[0]?.message?.content ?? "";
-  // OpenRouter returns cost in USD directly on `usage.cost`
+  // OpenRouter returns usage by default for non-streaming calls
   const cost: number = (typeof data.usage?.cost === "number" ? data.usage.cost : 0) + 
                        (typeof data.usage?.cost_details?.upstream_inference_cost === "number" ? data.usage.cost_details.upstream_inference_cost : 0);
   return { text, cost };
