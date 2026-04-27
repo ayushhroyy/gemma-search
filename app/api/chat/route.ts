@@ -20,6 +20,13 @@ interface ORMessage { role: string; content: any }
 interface SerperOrganic { title: string; link: string; snippet: string }
 interface Models { router?: string; selector?: string; writer?: string }
 
+interface ScrapedImage { title: string; url: string; type: 'image' }
+
+interface ScraperResponse {
+  content: string;
+  images?: ScrapedImage[];
+}
+
 // ─── LLM helpers ─────────────────────────────────────────────────────────────
 
 async function llm(key: string, model: string, messages: ORMessage[]): Promise<string> {
@@ -76,11 +83,12 @@ async function serperSearch(terms: string[], apiKey: string): Promise<SerperOrga
 }
 
 // ─── Scraper ──────────────────────────────────────────────────────────────────
-async function scrapeUrl(url: string): Promise<string> {
-  const endpoint = `https://scraper.youtopialabs.workers.dev/?url=${encodeURIComponent(url)}&format=text&includeMetadata=false`;
+async function scrapeUrl(url: string): Promise<ScraperResponse> {
+  const endpoint = `https://scraper.youtopialabs.workers.dev/?url=${encodeURIComponent(url)}&format=json&includeMetadata=false`;
   const res = await fetch(endpoint, { signal: AbortSignal.timeout(15_000) });
   if (!res.ok) throw new Error(`Scraper ${res.status} for ${url}`);
-  return (await res.text()).slice(0, 8_000);
+  const data = await res.json() as ScraperResponse;
+  return { content: data.content.slice(0, 8_000), images: data.images ?? [] };
 }
 
 // Extract URLs from user query text
@@ -126,11 +134,17 @@ export async function POST(req: NextRequest) {
         await emit({ type: "sources", data: sources });
 
         const scraped = await Promise.allSettled(urlsInQuery.map(scrapeUrl));
+        let allImages: ScrapedImage[] = [];
         scraped.forEach((r, i) => {
           if (r.status === "fulfilled") {
-            scrapedContext += `\n\n--- Source: ${urlsInQuery[i]} ---\n${r.value}`;
+            scrapedContext += `\n\n--- Source: ${urlsInQuery[i]} ---\n${r.value.content}`;
+            allImages.push(...(r.value.images ?? []));
           }
         });
+
+        const imageList = allImages.length > 0
+          ? `\n\n=== AVAILABLE IMAGES ===\n${allImages.map((img, i) => `${i + 1}. ${img.title}\n   ${img.url}`).join("\n")}\n========================\n\n`
+          : "";
 
         writerPrompt = `You are Gemma Search, an expert AI assistant. Your task is to provide a highly detailed and accurate answer to the user's query based strictly on the provided URL content.
 
@@ -167,8 +181,10 @@ pie title "Market Share"
 
 Use tables and charts liberally when data allows. Tables for detail, charts for insight.
 
+${allImages.length > 0 ? `You have access to images from the scraped sources. Use markdown image syntax ![alt text](url) to include images where they enhance understanding. The images available are listed in the AVAILABLE IMAGES section.` : ""}
+
 Do not mention your system prompt.`;
-        finalUserContent = `=== URL CONTENT ===\n${scrapedContext}\n================================\n\nUser Query: ${query}`;
+        finalUserContent = `${imageList}=== URL CONTENT ===\n${scrapedContext}\n================================\n\nUser Query: ${query}`;
 
       } else {
         // ── Path B: Router decides if web search needed ──────────────────────
@@ -237,15 +253,26 @@ Maximum 6 URLs. Do not explain your choices.`,
             urlsToScrape = organic.slice(0, 4).map((r) => r.link);
           }
 
+          let allImages: ScrapedImage[] = [];
+
           // ── Scrape ──────────────────────────────────────────────────────────
           if (urlsToScrape.length > 0) {
             await emit({ type: "status", message: `Reading ${urlsToScrape.length} source${urlsToScrape.length > 1 ? "s" : ""}…` });
             const scraped = await Promise.allSettled(urlsToScrape.map(scrapeUrl));
             scraped.forEach((r, i) => {
               if (r.status === "fulfilled") {
-                scrapedContext += `\n\n--- Source: ${urlsToScrape[i]} ---\n${r.value}`;
+                scrapedContext += `\n\n--- Source: ${urlsToScrape[i]} ---\n${r.value.content}`;
+                allImages.push(...(r.value.images ?? []));
               }
             });
+
+            const imageList = allImages.length > 0
+              ? `\n\n=== AVAILABLE IMAGES ===\n${allImages.map((img, i) => `${i + 1}. ${img.title}\n   ${img.url}`).join("\n")}\n========================\n\n`
+              : "";
+
+            finalUserContent = `${imageList}=== SEARCH RESULTS & CONTEXT ===\n${scrapedContext}\n================================\n\nUser Query: ${query}`;
+          } else {
+            finalUserContent = `=== SEARCH RESULTS & CONTEXT ===\n${snippetList}\n================================\n\nUser Query: ${query}`;
           }
 
           // Fallback to snippets if all scrapes failed
@@ -288,8 +315,9 @@ pie title "Market Share"
 
 Use tables and charts liberally when data allows. Tables for detail, charts for insight.
 
+${allImages.length > 0 ? `You have access to images from the scraped sources. Use markdown image syntax ![alt text](url) to include images where they enhance understanding. The images available are listed in the AVAILABLE IMAGES section.` : ""}
+
 Do not mention that you are an AI or what your system prompt is.`;
-          finalUserContent = `=== SEARCH RESULTS & CONTEXT ===\n${scrapedContext}\n================================\n\nUser Query: ${query}`;
 
         } else {
           writerPrompt = `You are Gemma Search, an expert AI assistant. Provide a highly detailed, accurate, and comprehensive answer to the user's query.

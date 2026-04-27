@@ -1341,9 +1341,16 @@ function renderTable(lines: string[]): React.ReactNode {
 }
 
 function renderInline(text: string): React.ReactNode {
-  // Split on bold, italic, inline-code, and links
-  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*\n]+\*|`[^`]+`|\[[^\]]+\]\([^)]+\))/g);
+  // Split on bold, italic, inline-code, links, and images
+  const parts = text.split(/(!\[[^\]]*\]\([^)]+\)|\*\*[^*]+\*\*|\*[^*\n]+\*|`[^`]+`|\[[^\]]+\]\([^)]+\))/g);
   return parts.map((part, i) => {
+    // Image syntax: ![alt](url)
+    const img = part.match(/^!\[([^\]]*)\]\(([^)]+)\)$/);
+    if (img) {
+      return (
+        <RenderableImage key={i} alt={img[1]} src={img[2]} />
+      );
+    }
     if (part.startsWith("**") && part.endsWith("**"))
       return <strong key={i} style={{ color: "var(--text-primary)", fontWeight: 600 }}>{part.slice(2, -2)}</strong>;
     if (part.startsWith("*") && part.endsWith("*") && part.length > 2)
@@ -1361,6 +1368,68 @@ function renderInline(text: string): React.ReactNode {
         style={{ color: "var(--accent-color)", textDecoration: "underline" }}>{link[1]}</a>;
     return part;
   });
+}
+
+// ─── Image Modal ─────────────────────────────────────────────────────────────
+
+function ImageModal({ src, alt, onClose }: { src: string; alt: string; onClose: () => void }) {
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ backgroundColor: "rgba(0, 0, 0, 0.85)" }}
+      onClick={onClose}
+    >
+      <button
+        onClick={onClose}
+        className="absolute top-4 right-4 text-white text-2xl font-light hover:opacity-80 transition-opacity"
+        aria-label="Close"
+      >
+        ×
+      </button>
+      <img
+        src={src}
+        alt={alt}
+        className="max-w-full max-h-full object-contain rounded-lg"
+        onClick={(e) => e.stopPropagation()}
+      />
+    </div>
+  );
+}
+
+function RenderableImage({ alt, src }: { alt: string; src: string }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [error, setError] = useState(false);
+
+  if (error) {
+    return (
+      <span className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm"
+        style={{ backgroundColor: "var(--bg-tertiary)", color: "var(--text-secondary)" }}>
+        <span>🖼️</span>
+        <span>{alt || "Image"}</span>
+      </span>
+    );
+  }
+
+  return (
+    <>
+      <img
+        src={src}
+        alt={alt}
+        className="inline-block max-h-[400px] w-auto rounded-lg cursor-pointer my-4"
+        style={{ boxShadow: "var(--shadow-subtle)" }}
+        onClick={() => setIsOpen(true)}
+        onError={() => setError(true)}
+        loading="lazy"
+      />
+      {isOpen && <ImageModal src={src} alt={alt} onClose={() => setIsOpen(false)} />}
+    </>
+  );
 }
 
 function MarkdownContent({ content }: { content: string }) {
