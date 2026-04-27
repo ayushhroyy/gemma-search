@@ -340,7 +340,8 @@ Today's date is ${new Date().toLocaleDateString("en-US", { weekday: "long", year
             ? `\n\n=== AVAILABLE IMAGES ===\n${allImages.map((img, i) => `${i + 1}. ${img.title}\n   ${img.url}`).join("\n")}\n========================\n\n`
             : "";
 
-          finalUserContent = `${imageList}=== SEARCH RESULTS & CONTEXT ===\n${scrapedContext || organic.map((r, i) => `[${i}] ${r.title}\n${r.snippet}\nURL: ${r.link}`).join("\n\n")}\n================================\n\nUser Query: ${query}`;
+          const snippets = organic.map((r, i) => `[${i}] ${r.title}\n${r.snippet}\nURL: ${r.link}`).join("\n\n");
+          finalUserContent = `${imageList}=== SEARCH RESULTS SNIPPETS ===\n${snippets}\n\n=== SCRAPED CONTENT ===\n${scrapedContext || "No detailed content available."}\n================================\n\nUser Query: ${query}`;
 
           await emit({ type: "status", message: "Writing response…" });
           const writerRes = await llmStream(openrouterKey, modelUni, [
@@ -524,12 +525,11 @@ Maximum 5 URLs. Do not explain your choices.`,
             ? `\n\n=== AVAILABLE IMAGES ===\n${allImages.map((img, i) => `${i + 1}. ${img.title}\n   ${img.url}`).join("\n")}\n========================\n\n`
             : "";
 
-          finalUserContent = scrapedContext 
-            ? `${imageList}=== SEARCH RESULTS & CONTEXT ===\n${scrapedContext}\n================================\n\nUser Query: ${query}`
-            : `=== SEARCH RESULTS & CONTEXT ===\n${organic.map((r, i) => `[${i}] ${r.title}\n${r.snippet}\nURL: ${r.link}`).join("\n\n")}\n================================\n\nUser Query: ${query}`;
+          const snippets = organic.map((r, i) => `[${i}] ${r.title}\n${r.snippet}\nURL: ${r.link}`).join("\n\n");
+          finalUserContent = `${imageList}=== SEARCH RESULTS SNIPPETS ===\n${snippets}\n\n=== SCRAPED CONTENT ===\n${scrapedContext || "No detailed content available."}\n================================\n\nUser Query: ${query}`;
 
-          // Fallback to snippets if all scrapes failed across all attempts
-          if (!scrapedContext.trim()) scrapedContext = organic.map(r => r.snippet).join("\n");
+          // No longer needed as snippets are always included above
+          // if (!scrapedContext.trim()) scrapedContext = organic.map(r => r.snippet).join("\n");
 
           writerSystemPromptStr = writerSystemPrompt(allImages.length > 0, false);
 
