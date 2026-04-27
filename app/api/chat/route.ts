@@ -5,7 +5,7 @@ export const runtime = "edge";
 // ─── Defaults ─────────────────────────────────────────────────────────────────
 const DEFAULT_ROUTER   = "google/gemma-4-31b-it";
 const DEFAULT_SELECTOR = "google/gemma-4-26b-a4b-it";
-const DEFAULT_WRITER   = "google/gemma-4-31b-it";
+const DEFAULT_WRITER   = "google/gemma-3-12b-it";
 
 const OR_BASE    = "https://openrouter.ai/api/v1/chat/completions";
 const OR_HEADERS = (key: string) => ({

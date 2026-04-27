@@ -24,7 +24,7 @@ interface ModelConfig {
 const DEFAULT_MODELS: ModelConfig = {
   router:   "google/gemma-4-31b-it",
   selector: "google/gemma-4-26b-a4b-it",
-  writer:   "google/gemma-4-31b-it",
+  writer:   "google/gemma-3-12b-it",
 };
 
 interface Source {
@@ -298,6 +298,7 @@ export default function HomePage() {
           onSubmit={handleSubmit}
           onKeyDown={handleKeyDown}
           placeholder={showPlaceholder ? placeholders[placeholderIndex] : ""}
+          onSuggestionClick={setSearchQuery}
         />
       )}
     </div>
@@ -321,9 +322,10 @@ interface LandingInterfaceProps {
   onSubmit: () => void;
   onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
   placeholder: string;
+  onSuggestionClick: (text: string) => void;
 }
 
-function LandingInterface({ searchQuery, onSearchChange, onSubmit, onKeyDown, placeholder }: LandingInterfaceProps) {
+function LandingInterface({ searchQuery, onSearchChange, onSubmit, onKeyDown, placeholder, onSuggestionClick }: LandingInterfaceProps) {
   return (
     <main className="relative z-10 flex h-full items-center justify-center px-4 sm:px-6">
       <div className="w-full max-w-3xl">
@@ -337,7 +339,7 @@ function LandingInterface({ searchQuery, onSearchChange, onSubmit, onKeyDown, pl
           placeholder={placeholder}
         />
 
-        <SuggestedQueries />
+        <SuggestedQueries onSelect={onSuggestionClick} />
       </div>
     </main>
   );
@@ -703,12 +705,12 @@ function SearchBox({
   );
 }
 
-function SuggestedQueries() {
+function SuggestedQueries({ onSelect }: { onSelect: (t: string) => void }) {
   const suggestions = [
-    { icon: "💡", text: "Explain quantum computing in simple terms" },
-    { icon: "🎨", text: "Generate creative writing ideas" },
-    { icon: "🔬", text: "Help me analyze research data" },
-    { icon: "📝", text: "Draft an email to my team" },
+    { icon: "📰", text: "What are the latest developments in AI?" },
+    { icon: "📉", text: "How did the stock market perform today?" },
+    { icon: "🌤️", text: "What's the weather forecast for New York this week?" },
+    { icon: "🏀", text: "Who won the NBA finals last night?" },
   ];
 
   return (
@@ -716,7 +718,8 @@ function SuggestedQueries() {
       {suggestions.map((suggestion, index) => (
         <button
           key={index}
-          className="flex items-center gap-2 rounded-full border px-4 py-2.5 text-sm transition-all duration-200"
+          onClick={() => onSelect(suggestion.text)}
+          className="flex items-center gap-2 rounded-full border px-4 py-2.5 text-sm transition-all duration-100"
           style={{
             backgroundColor: "var(--bg-secondary)",
             borderColor: "var(--border-color)",
