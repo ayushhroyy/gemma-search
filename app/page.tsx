@@ -1432,17 +1432,23 @@ function MarkdownContent({ content }: { content: string }) {
     }
     if (inCode) { codeLines.push(line); return; }
 
-    // Headings (### before ## before #)
+    // Headings (match all 6 levels: # through ######)
+    const h6 = line.match(/^######\s+(.+)/);
+    const h5 = line.match(/^#####\s+(.+)/);
+    const h4 = line.match(/^####\s+(.+)/);
     const h3 = line.match(/^###\s+(.+)/);
     const h2 = line.match(/^##\s+(.+)/);
     const h1 = line.match(/^#\s+(.+)/);
-    // Also treat **Entire line** as an h3-style header
-    const boldHeader = !h1 && !h2 && !h3 && line.match(/^\*\*([^*]+)\*\*\s*$/);
+    // Also treat **Entire line** as an h4-style header
+    const boldHeader = !h1 && !h2 && !h3 && !h4 && !h5 && !h6 && line.match(/^\*\*([^*]+)\*\*\s*$/);
 
+    if (h6) { flushList(key + "l"); flushTable(key + "t"); nodes.push(<h6 key={key} className="text-xs font-medium mt-3 mb-1" style={{ color: "var(--text-primary)", fontFamily: "var(--font-ui)" }}>{renderInline(h6[1])}</h6>); return; }
+    if (h5) { flushList(key + "l"); flushTable(key + "t"); nodes.push(<h5 key={key} className="text-sm font-medium mt-4 mb-1.5" style={{ color: "var(--text-primary)", fontFamily: "var(--font-ui)" }}>{renderInline(h5[1])}</h5>); return; }
+    if (h4) { flushList(key + "l"); flushTable(key + "t"); nodes.push(<h4 key={key} className="text-sm font-semibold mt-5 mb-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-ui)" }}>{renderInline(h4[1])}</h4>); return; }
     if (h3) { flushList(key + "l"); flushTable(key + "t"); nodes.push(<h3 key={key} className="text-base font-semibold mt-6 mb-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-ui)" }}>{renderInline(h3[1])}</h3>); return; }
     if (h2) { flushList(key + "l"); flushTable(key + "t"); nodes.push(<h2 key={key} className="text-lg font-semibold mt-7 mb-3" style={{ color: "var(--text-primary)", fontFamily: "var(--font-ui)" }}>{renderInline(h2[1])}</h2>); return; }
     if (h1) { flushList(key + "l"); flushTable(key + "t"); nodes.push(<h1 key={key} className="text-xl font-semibold mt-8 mb-4" style={{ color: "var(--text-primary)", fontFamily: "var(--font-ui)" }}>{renderInline(h1[1])}</h1>); return; }
-    if (boldHeader) { flushList(key + "l"); flushTable(key + "t"); nodes.push(<h3 key={key} className="text-base font-semibold mt-6 mb-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-ui)" }}>{boldHeader[1]}</h3>); return; }
+    if (boldHeader) { flushList(key + "l"); flushTable(key + "t"); nodes.push(<h4 key={key} className="text-sm font-semibold mt-5 mb-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-ui)" }}>{boldHeader[1]}</h4>); return; }
 
     // Table detection (markdown tables start with |)
     const isTableRow = line.trim().startsWith("|") && line.trim().endsWith("|");
