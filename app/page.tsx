@@ -447,10 +447,10 @@ function ChatInterface({
   useEffect(() => {
     if (!userHasScrolledUp) {
       isProgrammaticScroll.current = true;
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-      setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
+      requestAnimationFrame(() => {
         isProgrammaticScroll.current = false;
-      }, 100);
+      });
     }
   }, [messages, isTyping, userHasScrolledUp, messagesEndRef]);
 
