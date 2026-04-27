@@ -477,9 +477,9 @@ Today's date is ${new Date().toLocaleDateString("en-US", { weekday: "long", year
               {
                 role: "system",
                 content: `You are a content-selector agent. Your job is to select the most relevant and high-quality URLs from the search results to answer the user's query.
-Be smart and selective: only pick the sources that are truly necessary and high-quality. You can pick as few as 1 if it is excellent, or more if needed. Avoid picking similar sites or low-value results that would bloat the context.
+Be extremely conservative and selective: only pick the 1-3 most essential and high-quality sources. Only pick more than 1 if the query is truly complex and absolutely requires multiple viewpoints to be accurate. Avoid picking similar sites or low-value results.
 Return ONLY valid JSON containing the selected URLs: {"urls": ["https://...", "https://..."]}
-Maximum 5 URLs. Do not explain your choices.`,
+Maximum 3 URLs. Do not explain your choices.`,
               },
               { role: "user", content: `Query: ${query}\n\nResults:\n${snippetList}` },
             ]);
