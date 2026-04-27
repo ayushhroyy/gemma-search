@@ -476,10 +476,10 @@ Today's date is ${new Date().toLocaleDateString("en-US", { weekday: "long", year
             const { text: selectorText, cost: selectorCost, promptTokens: sIP, completionTokens: sOP } = await llm(openrouterKey, modelSelector, [
               {
                 role: "system",
-                content: `You are a content-selector agent. Your job is to select the most relevant and high-quality URLs from the search results to answer the user's query.
-Be extremely conservative and selective: only pick the 1-3 most essential and high-quality sources. Only pick more than 1 if the query is truly complex and absolutely requires multiple viewpoints to be accurate. Avoid picking similar sites or low-value results.
+                content: `You are a content-selector agent. Your job is to select only the most relevant and high-quality URLs from the search results that are absolutely essential to answer the user's query.
+Be extremely conservative and selective: cherry-pick only the most high-value sources. Do not overpick; focus on quality over quantity. If one site provides a comprehensive answer, only pick that one. Avoid picking similar sites or low-value results.
 Return ONLY valid JSON containing the selected URLs: {"urls": ["https://...", "https://..."]}
-Maximum 3 URLs. Do not explain your choices.`,
+Do not explain your choices.`,
               },
               { role: "user", content: `Query: ${query}\n\nResults:\n${snippetList}` },
             ]);
