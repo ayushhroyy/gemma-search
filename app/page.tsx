@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Menu, X, Plus, Sun, Moon, ArrowRight, Paperclip, ChevronDown, Cpu, Square, Copy, Download, Pencil, Check } from "lucide-react";
+import mermaid from "mermaid";
 
 // ─── Gemma Models ─────────────────────────────────────────────────────────────
 const GEMMA_MODELS = [
@@ -1194,6 +1195,142 @@ function Sidebar({
 
 // ─── Markdown Renderer ────────────────────────────────────────────────────────
 
+// Initialize mermaid once
+mermaid.initialize({
+  startOnLoad: false,
+  theme: "base",
+  themeVariables: {
+    primaryColor: "var(--accent-color)",
+    primaryTextColor: "var(--text-primary)",
+    primaryBorderColor: "var(--border-color)",
+    lineColor: "var(--border-color)",
+    secondaryColor: "var(--bg-tertiary)",
+    tertiaryColor: "var(--bg-secondary)",
+    background: "var(--bg-secondary)",
+    mainBkg: "var(--bg-tertiary)",
+    nodeBorder: "var(--border-color)",
+    fontSize: "14px",
+  },
+  securityLevel: "loose",
+});
+
+function MermaidChart({ code, id }: { code: string; id: string }) {
+  const [svg, setSvg] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    mermaid.render(id, code)
+      .then(({ svg }) => {
+        if (!cancelled) setSvg(svg);
+      })
+      .catch((err) => {
+        if (!cancelled) setError("Chart unavailable");
+      });
+    return () => { cancelled = true; };
+  }, [code, id]);
+
+  if (error) {
+    return (
+      <div className="mb-4 rounded-xl p-4 text-sm" style={{ backgroundColor: "var(--bg-tertiary)", color: "var(--text-tertiary)" }}>
+        {error}
+      </div>
+    );
+  }
+
+  if (!svg) {
+    return (
+      <div className="mb-4 rounded-xl p-4 text-sm animate-pulse" style={{ backgroundColor: "var(--bg-tertiary)", color: "var(--text-tertiary)" }}>
+        Rendering chart…
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="mb-4 flex justify-center"
+      dangerouslySetInnerHTML={{ __html: svg }}
+      style={{ maxWidth: "100%", overflowX: "auto" }}
+    />
+  );
+}
+
+function renderTable(lines: string[]): React.ReactNode {
+  const rows: string[][] = [];
+  const alignments: ("left" | "center" | "right")[] = [];
+
+  for (const line of lines) {
+    const cells = line.split("|").filter(c => c.trim() !== "");
+    if (cells.length === 0) continue;
+
+    // Check if this is the separator row (contains only -, :, and spaces)
+    if (cells.every(c => /^[\s:-]+$/.test(c))) {
+      for (const cell of cells) {
+        if (cell.includes(":")) {
+          if (cell.startsWith(":") && cell.endsWith(":")) alignments.push("center");
+          else if (cell.endsWith(":")) alignments.push("right");
+          else alignments.push("left");
+        } else {
+          alignments.push("left");
+        }
+      }
+      continue;
+    }
+
+    rows.push(cells.map(c => c.trim()));
+  }
+
+  if (rows.length === 0) return null;
+
+  return (
+    <div className="mb-4 overflow-x-auto rounded-xl" style={{ border: "1px solid var(--border-color)" }}>
+      <table className="w-full text-sm" style={{ borderCollapse: "collapse" }}>
+        <thead style={{ backgroundColor: "var(--bg-tertiary)" }}>
+          <tr>
+            {rows[0]?.map((cell, i) => (
+              <th
+                key={i}
+                className="px-4 py-2 font-semibold"
+                style={{
+                  color: "var(--text-primary)",
+                  textAlign: alignments[i] || "left",
+                  borderBottom: "1px solid var(--border-color)",
+                }}
+              >
+                {renderInline(cell)}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.slice(1).map((row, ri) => (
+            <tr
+              key={ri}
+              style={{
+                backgroundColor: ri % 2 === 0 ? "transparent" : "var(--bg-tertiary)",
+              }}
+            >
+              {row.map((cell, ci) => (
+                <td
+                  key={ci}
+                  className="px-4 py-2"
+                  style={{
+                    color: "var(--text-secondary)",
+                    textAlign: alignments[ci] || "left",
+                    borderBottom: ci === row.length - 1 ? "none" : "1px solid var(--border-color)",
+                  }}
+                >
+                  {renderInline(cell)}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function renderInline(text: string): React.ReactNode {
   // Split on bold, italic, inline-code, and links
   const parts = text.split(/(\*\*[^*]+\*\*|\*[^*\n]+\*|`[^`]+`|\[[^\]]+\]\([^)]+\))/g);
@@ -1224,6 +1361,12 @@ function MarkdownContent({ content }: { content: string }) {
   let isOrdered = false;
   let codeLines: string[]  = [];
   let inCode    = false;
+  let codeLang  = "";
+  let mermaidId = useMemo(() => `mermaid-${Math.random().toString(36).substr(2, 9)}`, []);
+
+  // Table accumulator
+  let tableLines: string[] = [];
+  let inTable = false;
 
   const flushList = (key: string) => {
     if (!listItems.length) return;
@@ -1240,21 +1383,41 @@ function MarkdownContent({ content }: { content: string }) {
     listItems = [];
   };
 
+  const flushTable = (key: string) => {
+    if (!tableLines.length) return;
+    const table = renderTable(tableLines);
+    if (table) nodes.push(<React.Fragment key={key}>{table}</React.Fragment>);
+    tableLines = [];
+  };
+
   lines.forEach((line, idx) => {
     const key = String(idx);
 
     // Code fence
     if (line.startsWith("```")) {
-      if (!inCode) { inCode = true; codeLines = []; }
-      else {
+      // Flush any pending table
+      if (inTable) { flushTable(key + "t"); inTable = false; }
+      flushList(key + "l");
+
+      if (!inCode) {
+        inCode = true;
+        codeLines = [];
+        codeLang = line.slice(3).trim().toLowerCase();
+      } else {
         inCode = false;
-        flushList(key + "l");
-        nodes.push(
-          <pre key={key} className="mb-4 rounded-xl p-4 overflow-x-auto text-sm font-mono"
-            style={{ backgroundColor: "var(--bg-tertiary)", color: "var(--text-primary)" }}>
-            <code>{codeLines.join("\n")}</code>
-          </pre>
-        );
+        const codeContent = codeLines.join("\n");
+
+        // Check if this is a mermaid chart
+        if (codeLang === "mermaid" || codeLang === "chart") {
+          nodes.push(<MermaidChart key={key} code={codeContent} id={mermaidId + "-" + key} />);
+        } else {
+          nodes.push(
+            <pre key={key} className="mb-4 rounded-xl p-4 overflow-x-auto text-sm font-mono"
+              style={{ backgroundColor: "var(--bg-tertiary)", color: "var(--text-primary)" }}>
+              <code>{codeContent}</code>
+            </pre>
+          );
+        }
       }
       return;
     }
@@ -1267,10 +1430,24 @@ function MarkdownContent({ content }: { content: string }) {
     // Also treat **Entire line** as an h3-style header
     const boldHeader = !h1 && !h2 && !h3 && line.match(/^\*\*([^*]+)\*\*\s*$/);
 
-    if (h3) { flushList(key + "l"); nodes.push(<h3 key={key} className="text-base font-semibold mt-6 mb-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-ui)" }}>{renderInline(h3[1])}</h3>); return; }
-    if (h2) { flushList(key + "l"); nodes.push(<h2 key={key} className="text-lg font-semibold mt-7 mb-3" style={{ color: "var(--text-primary)", fontFamily: "var(--font-ui)" }}>{renderInline(h2[1])}</h2>); return; }
-    if (h1) { flushList(key + "l"); nodes.push(<h1 key={key} className="text-xl font-semibold mt-8 mb-4" style={{ color: "var(--text-primary)", fontFamily: "var(--font-ui)" }}>{renderInline(h1[1])}</h1>); return; }
-    if (boldHeader) { flushList(key + "l"); nodes.push(<h3 key={key} className="text-base font-semibold mt-6 mb-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-ui)" }}>{boldHeader[1]}</h3>); return; }
+    if (h3) { flushList(key + "l"); flushTable(key + "t"); nodes.push(<h3 key={key} className="text-base font-semibold mt-6 mb-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-ui)" }}>{renderInline(h3[1])}</h3>); return; }
+    if (h2) { flushList(key + "l"); flushTable(key + "t"); nodes.push(<h2 key={key} className="text-lg font-semibold mt-7 mb-3" style={{ color: "var(--text-primary)", fontFamily: "var(--font-ui)" }}>{renderInline(h2[1])}</h2>); return; }
+    if (h1) { flushList(key + "l"); flushTable(key + "t"); nodes.push(<h1 key={key} className="text-xl font-semibold mt-8 mb-4" style={{ color: "var(--text-primary)", fontFamily: "var(--font-ui)" }}>{renderInline(h1[1])}</h1>); return; }
+    if (boldHeader) { flushList(key + "l"); flushTable(key + "t"); nodes.push(<h3 key={key} className="text-base font-semibold mt-6 mb-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-ui)" }}>{boldHeader[1]}</h3>); return; }
+
+    // Table detection (markdown tables start with |)
+    const isTableRow = line.trim().startsWith("|") && line.trim().endsWith("|");
+    if (isTableRow) {
+      flushList(key + "l");
+      inTable = true;
+      tableLines.push(line.trim());
+      return;
+    }
+    // Flush table if we were in one and this line isn't a table row
+    if (inTable) {
+      flushTable(key + "t");
+      inTable = false;
+    }
 
     // Ordered list
     const ol = line.match(/^(\d+)\.\s+(.+)/);
@@ -1290,8 +1467,8 @@ function MarkdownContent({ content }: { content: string }) {
       return;
     }
 
-    // Empty line → flush list
-    if (!line.trim()) { flushList(key + "l"); return; }
+    // Empty line → flush list and table
+    if (!line.trim()) { flushList(key + "l"); flushTable(key + "t"); inTable = false; return; }
 
     // Paragraph
     flushList(key + "l");
@@ -1303,6 +1480,7 @@ function MarkdownContent({ content }: { content: string }) {
   });
 
   flushList("final");
+  flushTable("final-t");
   return <>{nodes}</>;
 }
 
