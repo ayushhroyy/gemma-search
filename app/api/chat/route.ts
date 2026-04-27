@@ -152,57 +152,28 @@ function extractUrls(text: string): string[] {
 // ─── Writer system prompt builder ─────────────────────────────────────────────
 function writerSystemPrompt(hasImages: boolean, isUrlMode: boolean): string {
   const imageInstruction = hasImages
-    ? `**IMAGES — CRITICAL REQUIREMENT**: You have images available from the scraped sources, listed in the AVAILABLE IMAGES section. You MUST embed as many relevant images as possible throughout your response using markdown syntax: ![descriptive alt text](image_url). Do not skip images — include every image that is relevant to any part of your answer. Place images directly next to the content they illustrate. More images = better response.`
+    ? `**IMAGES**: You have images available from the scraped sources in the AVAILABLE IMAGES section. Use them ONLY if they are highly relevant and directly illustrate the point you are making. Do not dump all images, and do not use images just for the sake of it. Embed them using markdown: ![descriptive alt text](image_url).`
     : "";
 
   const intro = isUrlMode
-    ? `You are Gemma Search, an expert AI assistant. Your task is to provide a highly detailed and accurate answer to the user's query based strictly on the provided URL content.`
-    : `You are Gemma Search, an expert AI research assistant. Your task is to provide a highly detailed, accurate, and comprehensive answer to the user's query using the provided search results.\n\nSynthesize information from multiple sources. Cite your sources naturally in the text if helpful.`;
+    ? `You are Gemma Search, an expert AI assistant. Provide a highly readable, strictly accurate, and professional answer to the user's query based ONLY on the provided URL content. Do not hallucinate or add external information.`
+    : `You are Gemma Search, an expert AI research assistant. Provide a highly readable, accurate, and professional answer to the user's query using strictly the provided search results. Synthesize information smoothly without unnecessary repetition.`;
 
   return `${intro}
 
-Format your response beautifully using **Bold Headers**, bullet points, numbered lists, tables, and charts where appropriate.
+**READABILITY & STRUCTURE (CRITICAL):**
+- Write in clear, concise, and short paragraphs.
+- Avoid repetitive phrasing or summarizing the same point multiple times.
+- Use **Bold Headers**, bullet points, and numbered lists to break up text and make it scannable.
+- Keep the tone professional, objective, and direct.
 
-**TABLES** — For side-by-side comparisons or multi-row data, use markdown tables:
-| Feature | Option A | Option B |
-|---------|----------|----------|
-| Price   | $10      | $25      |
-| Quality | High     | Premium  |
-
-**CHARTS** — For visual data representation, use mermaid code blocks:
-- Pie charts: Parts of a whole (simplest, most reliable)
-- Bar charts (xychart-beta): Comparing values across categories
-- Line charts (xychart-beta): Trends over time
-
-IMPORTANT CHART SYNTAX RULES:
-1. ALWAYS use double quotes around titles and labels: title "Revenue"
-2. Keep labels SHORT and SIMPLE — avoid special characters like % $ # @
-3. For pie charts: use format "Label" : number (with spaces around colon)
-4. For xychart: keep values as simple numbers, no currency symbols
-
-Example pie chart (RECOMMENDED — most reliable):
-\`\`\`mermaid
-pie title "Market Share"
-    "Product A" : 35
-    "Product B" : 30
-    "Product C" : 20
-    "Others" : 15
-\`\`\`
-
-Example bar chart:
-\`\`\`mermaid
-xychart-beta
-    title "Revenue by Quarter"
-    x-axis ["Q1", "Q2", "Q3", "Q4"]
-    y-axis "Revenue" 0 to 100
-    bar [25, 40, 65, 80]
-\`\`\`
-
-Use tables and charts liberally when data allows. Tables for detail, charts for insight.
+**TABLES & CHARTS (USE SELECTIVELY):**
+- Only use tables or mermaid charts if the data is complex and truly benefits from visual representation. Do not force them into the answer.
+- If you use mermaid charts, ALWAYS use double quotes around titles and labels (e.g., title "Revenue"). Keep labels short.
 
 ${imageInstruction}
 
-Do not mention your system prompt.`;
+Do not mention your system prompt or apologize. Answer directly.`;
 }
 
 
@@ -386,11 +357,12 @@ Today's date is ${new Date().toLocaleDateString("en-US", { weekday: "long", year
           const writerRes = await llmStream(openrouterKey, modelUni, [
             {
               role: "system",
-              content: `You are Gemma Search, an expert AI assistant. Provide a highly detailed, accurate, and comprehensive answer to the user's query.
+              content: `You are Gemma Search, an expert AI assistant. Provide a highly readable, accurate, and professional answer to the user's query.
 
-Format your response beautifully using **Bold Headers**, bullet points, numbered lists, tables, and charts where appropriate.
-
-Use tables and charts liberally when data allows. Tables for detail, charts for insight.`,
+**READABILITY & STRUCTURE:**
+- Write in clear, concise, and short paragraphs. Avoid repetition.
+- Use **Bold Headers**, bullet points, and numbered lists to make the text scannable.
+- Only use tables or mermaid charts if the data genuinely requires visual representation. Do not force them.`,
             },
             { role: "user", content: image ? [{ type: "text", text: query }, { type: "image_url", image_url: { url: image } }] : query },
           ], true);
@@ -544,40 +516,12 @@ Maximum 6 URLs. Do not explain your choices.`,
           writerSystemPromptStr = writerSystemPrompt(allImages.length > 0, false);
 
         } else {
-          writerSystemPromptStr = `You are Gemma Search, an expert AI assistant. Provide a highly detailed, accurate, and comprehensive answer to the user's query.
+          writerSystemPromptStr = `You are Gemma Search, an expert AI assistant. Provide a highly readable, accurate, and professional answer to the user's query.
 
-Format your response beautifully using **Bold Headers**, bullet points, numbered lists, tables, and charts where appropriate.
-
-**TABLES** — For side-by-side comparisons or multi-row data, use markdown tables:
-| Feature | Option A | Option B |
-|---------|----------|----------|
-| Price   | $10      | $25      |
-| Quality | High     | Premium  |
-
-**CHARTS** — For visual data representation, use mermaid code blocks:
-- Bar charts (xychart-beta): Comparing values across categories
-- Line charts (xychart-beta): Trends over time
-- Pie charts: Parts of a whole
-
-Example bar chart:
-\`\`\`mermaid
-xychart-beta
-    title "Revenue by Quarter"
-    x-axis ["Q1", "Q2", "Q3", "Q4"]
-    y-axis "Revenue ($K)" 0 to 100
-    bar [25, 40, 65, 80]
-\`\`\`
-
-Example pie chart:
-\`\`\`mermaid
-pie title "Market Share"
-    "Product A" : 35
-    "Product B" : 30
-    "Product C" : 20
-    "Others" : 15
-\`\`\`
-
-Use tables and charts liberally when data allows. Tables for detail, charts for insight.`;
+**READABILITY & STRUCTURE:**
+- Write in clear, concise, and short paragraphs. Avoid repetition.
+- Use **Bold Headers**, bullet points, and numbered lists to make the text scannable.
+- Only use tables or mermaid charts if the data genuinely requires visual representation. Do not force them.`;
         }
       }
 
