@@ -325,7 +325,7 @@ interface LandingInterfaceProps {
 
 function LandingInterface({ searchQuery, onSearchChange, onSubmit, onKeyDown, placeholder }: LandingInterfaceProps) {
   return (
-    <main className="relative z-10 flex h-full items-center justify-center px-6">
+    <main className="relative z-10 flex h-full items-center justify-center px-4 sm:px-6">
       <div className="w-full max-w-3xl">
         <Logo />
 
@@ -388,7 +388,7 @@ function ChatInterface({
 
   return (
     <main className="relative z-10 flex h-full flex-col pb-6 pt-16">
-      <div className="flex-1 overflow-y-auto w-full px-6 py-4">
+      <div className="flex-1 overflow-y-auto w-full px-4 sm:px-6 py-4">
         <div className="max-w-3xl w-full mx-auto">
           {messages.map((message, idx) => (
             <ResearchCardMessage key={message.id} message={message} isFirst={idx === 0} />
@@ -398,7 +398,7 @@ function ChatInterface({
         </div>
       </div>
 
-      <div className="w-full px-6">
+      <div className="w-full px-4 sm:px-6">
         <div className="max-w-3xl w-full mx-auto">
           <div
           className="relative rounded-2xl border transition-all duration-300 ease-out"
@@ -764,9 +764,9 @@ function Header({
   onModelChange,
 }: HeaderProps) {
   return (
-    <header className="fixed top-0 left-0 right-0 z-20 px-6 py-4">
+    <header className="fixed top-0 left-0 right-0 z-20 px-3 sm:px-6 py-3 sm:py-4">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <button
             onClick={onToggleSidebar}
             className="rounded-xl p-2.5 text-[var(--text-primary)] transition-all duration-200 hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)] active:scale-95"
@@ -783,7 +783,7 @@ function Header({
           {isChatMode && onNewChat && (
             <button
               onClick={onNewChat}
-              className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] animate-slide-in-left"
+              className="flex items-center gap-2 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-medium transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] animate-slide-in-left"
               style={{
                 backgroundColor: "var(--bg-secondary)",
                 color: "var(--text-primary)",
@@ -797,12 +797,12 @@ function Header({
               }}
             >
               <Plus className="h-4 w-4" />
-              <span>New chat</span>
+              <span className="hidden sm:inline">New chat</span>
             </button>
           )}
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <ModelPicker config={modelConfig} onChange={onModelChange} />
           <button
             onClick={onToggleTheme}
@@ -822,7 +822,7 @@ function Header({
           </button>
 
           <button
-            className="rounded-xl px-5 py-2.5 font-medium text-sm transition-all duration-200"
+            className="hidden sm:block rounded-xl px-5 py-2.5 font-medium text-sm transition-all duration-200"
             style={{
               backgroundColor: "var(--bg-secondary)",
               color: "var(--text-primary)",
@@ -1089,7 +1089,7 @@ function ModelPicker({ config, onChange }: { config: ModelConfig; onChange: (c: 
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-medium transition-all duration-200 active:scale-95"
+        className="flex items-center gap-1.5 rounded-xl px-2.5 sm:px-3 py-2 text-xs font-medium transition-all duration-200 active:scale-95"
         style={{
           backgroundColor: open ? "var(--bg-tertiary)" : "var(--bg-secondary)",
           color: "var(--text-secondary)",
@@ -1098,13 +1098,13 @@ function ModelPicker({ config, onChange }: { config: ModelConfig; onChange: (c: 
         aria-label="Select agent models"
       >
         <Cpu className="h-3.5 w-3.5" style={{ color: "var(--accent-color)" }} />
-        <span>Models</span>
+        <span className="hidden sm:inline">Models</span>
         <ChevronDown className={`h-3 w-3 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
       </button>
 
       {open && (
         <div
-          className="absolute right-0 top-full mt-2 w-72 rounded-2xl border p-4 z-50 animate-fade-in"
+          className="absolute right-0 top-full mt-2 w-64 sm:w-72 rounded-2xl border p-4 z-50 animate-fade-in"
           style={{
             backgroundColor: "var(--bg-secondary)",
             borderColor: "var(--border-color)",
