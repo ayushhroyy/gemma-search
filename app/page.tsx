@@ -110,9 +110,7 @@ export default function HomePage() {
     };
   }, []);
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isTyping]);
+  // (Scroll logic moved to ChatInterface)
 
   const toggleTheme = () => {
     const newTheme = !isDark;
@@ -369,7 +367,24 @@ function ChatInterface({
   messagesEndRef,
 }: ChatInterfaceProps) {
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+  const scrollContainerRef = React.useRef<HTMLDivElement>(null);
   const [isFocused, setIsFocused] = useState(false);
+  const [userHasScrolledUp, setUserHasScrolledUp] = useState(false);
+
+  // Smart scrolling
+  useEffect(() => {
+    if (!userHasScrolledUp) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages, isTyping, userHasScrolledUp, messagesEndRef]);
+
+  const handleScroll = () => {
+    if (!scrollContainerRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
+    // If user is within 100px of the bottom, consider them at the bottom
+    const isAtBottom = scrollHeight - scrollTop - clientHeight < 100;
+    setUserHasScrolledUp(!isAtBottom);
+  };
 
   const placeholders = [
     "Send a message...",
@@ -390,7 +405,11 @@ function ChatInterface({
 
   return (
     <main className="relative z-10 flex h-full flex-col pb-6 pt-20 sm:pt-24">
-      <div className="flex-1 overflow-y-auto w-full px-4 sm:px-6 py-6 sm:py-4">
+      <div 
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto w-full px-4 sm:px-6 py-6 sm:py-4"
+      >
         <div className="max-w-3xl w-full mx-auto">
           {messages.map((message, idx) => (
             <ResearchCardMessage key={message.id} message={message} isFirst={idx === 0} />
