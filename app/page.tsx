@@ -34,7 +34,7 @@ interface ModelConfig {
 const DEFAULT_MODELS: ModelConfig = {
   router:   "google/gemma-4-31b-it",
   selector: "google/gemma-4-26b-a4b-it",
-  writer:   "qwen/qwen3.5-9b",
+  writer:   "mistralai/mistral-small-3.2-24b-instruct",
   uniMode:  false,
   uni:      "google/gemma-4-31b-it",
 };

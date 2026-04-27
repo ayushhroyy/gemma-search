@@ -5,7 +5,7 @@ export const runtime = "edge";
 // ─── Defaults ─────────────────────────────────────────────────────────────────
 const DEFAULT_ROUTER   = "google/gemma-4-31b-it";
 const DEFAULT_SELECTOR = "google/gemma-4-26b-a4b-it";
-const DEFAULT_WRITER   = "qwen/qwen3.5-9b";
+const DEFAULT_WRITER   = "mistralai/mistral-small-3.2-24b-instruct";
 const DEFAULT_UNI      = "google/gemma-4-31b-it";
 
 const OR_BASE    = "https://openrouter.ai/api/v1/chat/completions";
@@ -55,7 +55,8 @@ async function llm(
   const data = await res.json();
   const text = data.choices?.[0]?.message?.content ?? "";
   // OpenRouter returns cost in USD directly on `usage.cost`
-  const cost: number = typeof data.usage?.cost === "number" ? data.usage.cost : 0;
+  const cost: number = (typeof data.usage?.cost === "number" ? data.usage.cost : 0) + 
+                       (typeof data.usage?.cost_details?.upstream_inference_cost === "number" ? data.usage.cost_details.upstream_inference_cost : 0);
   return { text, cost };
 }
 
@@ -215,8 +216,10 @@ async function pipeStreamAndExtractCost(
       if (raw === "[DONE]") continue;
       try {
         const parsed = JSON.parse(raw);
-        if (parsed.usage && typeof parsed.usage.cost === "number") {
-          streamCost = parsed.usage.cost;
+        if (parsed.usage) {
+          const c = typeof parsed.usage.cost === "number" ? parsed.usage.cost : 0;
+          const u = typeof parsed.usage.cost_details?.upstream_inference_cost === "number" ? parsed.usage.cost_details.upstream_inference_cost : 0;
+          streamCost = c + u;
         }
       } catch { /* skip */ }
     }
