@@ -151,7 +151,9 @@ Does not need:   {"needsSearch": false}
 needsSearch=true: current events, news, live data, prices, sports, weather, specific products/people/companies, recent releases, anything time-sensitive, or topics where facts matter.
 needsSearch=false: math, code, creative writing, translation, general explanations, stable factual concepts.
 
-CRITICAL: You are encouraged to generate multiple diverse search terms (up to 4) to ensure comprehensive results. For example, if asked about a comparison, search for both entities separately.`
+CRITICAL: You are encouraged to generate multiple diverse search terms (up to 4) to ensure comprehensive results. For example, if asked about a comparison, search for both entities separately.
+
+Today's date is ${new Date().toLocaleDateString("en-US", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.`
           },
           { role: "user", content: query },
         ]);
