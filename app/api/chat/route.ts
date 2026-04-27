@@ -459,59 +459,77 @@ Today's date is ${new Date().toLocaleDateString("en-US", { weekday: "long", year
           sources = organic.map((r) => ({ title: r.title, url: r.link, snippet: r.snippet }));
           await emit({ type: "sources", data: sources });
 
-          // ── Selector ────────────────────────────────────────────────────────
-          await emit({ type: "status", message: "Selecting best sources to read…" });
+          // ── Selector & Scraper with Fallback ────────────────────────────────
+          let scrapedContext = "";
+          let allImages: ScrapedImage[] = [];
+          const failedUrls = new Set<string>();
+          let attempts = 0;
 
-          const snippetList = organic
-            .map((r, i) => `[${i}] ${r.title}\n${r.snippet}\nURL: ${r.link}`)
-            .join("\n\n");
+          while (attempts < 2 && !scrapedContext) {
+            attempts++;
+            await emit({ type: "status", message: attempts > 1 ? "Retrying with alternative sources…" : "Selecting best sources to read…" });
 
-          const { text: selectorText, cost: selectorCost, promptTokens: sIP, completionTokens: sOP } = await llm(openrouterKey, modelSelector, [
-            {
-              role: "system",
-              content: `You are a content-selector agent. Your job is to select the most relevant and high-quality URLs from the search results to answer the user's query.
-Be smart and selective: only pick the 3-5 most relevant sources. Avoid picking similar sites or low-value results that would bloat the context.
+            // Filter out failed URLs from the results shown to Agent 2
+            const filteredOrganic = organic.filter(r => !failedUrls.has(r.link));
+            if (filteredOrganic.length === 0) break;
+
+            const snippetList = filteredOrganic
+              .map((r, i) => `[${i}] ${r.title}\n${r.snippet}\nURL: ${r.link}`)
+              .join("\n\n");
+
+            const { text: selectorText, cost: selectorCost, promptTokens: sIP, completionTokens: sOP } = await llm(openrouterKey, modelSelector, [
+              {
+                role: "system",
+                content: `You are a content-selector agent. Your job is to select the most relevant and high-quality URLs from the search results to answer the user's query.
+Be smart and selective: only pick the sources that are truly necessary and high-quality. You can pick as few as 1 if it is excellent, or more if needed. Avoid picking similar sites or low-value results that would bloat the context.
 Return ONLY valid JSON containing the selected URLs: {"urls": ["https://...", "https://..."]}
 Maximum 5 URLs. Do not explain your choices.`,
-            },
-            { role: "user", content: `Query: ${query}\n\nResults:\n${snippetList}` },
-          ]);
-          totalCost += selectorCost;
-          totalPromptTokens += sIP;
-          totalCompletionTokens += sOP;
+              },
+              { role: "user", content: `Query: ${query}\n\nResults:\n${snippetList}` },
+            ]);
+            totalCost += selectorCost;
+            totalPromptTokens += sIP;
+            totalCompletionTokens += sOP;
 
-          let urlsToScrape: string[] = [];
-          try {
-            const sel = safeJSON<{ urls: string[] }>(selectorText);
-            urlsToScrape = (sel.urls ?? []).slice(0, 6);
-          } catch {
-            urlsToScrape = organic.slice(0, 4).map((r) => r.link);
+            let urlsToScrape: string[] = [];
+            try {
+              const sel = safeJSON<{ urls: string[] }>(selectorText);
+              urlsToScrape = (sel.urls ?? []).slice(0, 5);
+            } catch {
+              urlsToScrape = filteredOrganic.slice(0, 2).map((r) => r.link);
+            }
+
+            if (urlsToScrape.length > 0) {
+              await emit({ type: "status", message: `Reading ${urlsToScrape.length} source${urlsToScrape.length > 1 ? "s" : ""}…` });
+              const scraped = await Promise.allSettled(urlsToScrape.map(scrapeUrl));
+              
+              let someSuccess = false;
+              scraped.forEach((r, i) => {
+                if (r.status === "fulfilled") {
+                  scrapedContext += `\n\n--- Source: ${urlsToScrape[i]} ---\n${r.value.content}`;
+                  allImages.push(...(r.value.images ?? []));
+                  someSuccess = true;
+                } else {
+                  failedUrls.add(urlsToScrape[i]);
+                }
+              });
+
+              if (someSuccess) break; // We got content!
+            } else {
+              break; // No URLs selected
+            }
           }
 
-          let allImages: ScrapedImage[] = [];
+          const imageList = allImages.length > 0
+            ? `\n\n=== AVAILABLE IMAGES ===\n${allImages.map((img, i) => `${i + 1}. ${img.title}\n   ${img.url}`).join("\n")}\n========================\n\n`
+            : "";
 
-          // ── Scrape ──────────────────────────────────────────────────────────
-          if (urlsToScrape.length > 0) {
-            await emit({ type: "status", message: `Reading ${urlsToScrape.length} source${urlsToScrape.length > 1 ? "s" : ""}…` });
-            const scraped = await Promise.allSettled(urlsToScrape.map(scrapeUrl));
-            scraped.forEach((r, i) => {
-              if (r.status === "fulfilled") {
-                scrapedContext += `\n\n--- Source: ${urlsToScrape[i]} ---\n${r.value.content}`;
-                allImages.push(...(r.value.images ?? []));
-              }
-            });
+          finalUserContent = scrapedContext 
+            ? `${imageList}=== SEARCH RESULTS & CONTEXT ===\n${scrapedContext}\n================================\n\nUser Query: ${query}`
+            : `=== SEARCH RESULTS & CONTEXT ===\n${organic.map((r, i) => `[${i}] ${r.title}\n${r.snippet}\nURL: ${r.link}`).join("\n\n")}\n================================\n\nUser Query: ${query}`;
 
-            const imageList = allImages.length > 0
-              ? `\n\n=== AVAILABLE IMAGES ===\n${allImages.map((img, i) => `${i + 1}. ${img.title}\n   ${img.url}`).join("\n")}\n========================\n\n`
-              : "";
-
-            finalUserContent = `${imageList}=== SEARCH RESULTS & CONTEXT ===\n${scrapedContext}\n================================\n\nUser Query: ${query}`;
-          } else {
-            finalUserContent = `=== SEARCH RESULTS & CONTEXT ===\n${snippetList}\n================================\n\nUser Query: ${query}`;
-          }
-
-          // Fallback to snippets if all scrapes failed
-          if (!scrapedContext.trim()) scrapedContext = snippetList;
+          // Fallback to snippets if all scrapes failed across all attempts
+          if (!scrapedContext.trim()) scrapedContext = organic.map(r => r.snippet).join("\n");
 
           writerSystemPromptStr = writerSystemPrompt(allImages.length > 0, false);
 
