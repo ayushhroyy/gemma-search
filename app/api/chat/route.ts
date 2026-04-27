@@ -292,7 +292,7 @@ Does not need:   {"needsSearch": false}
 needsSearch=true: current events, news, live data, prices, sports, weather, specific products/people/companies, recent releases, anything time-sensitive, or topics where facts matter.
 needsSearch=false: math, code, creative writing, translation, general explanations, stable factual concepts.
 
-Generate multiple diverse search terms (up to 4) for comprehensive results.
+Generate multiple diverse search terms (up to 4). IMPORTANT: You should include the raw user query as one of the search terms if it's likely to yield high-quality direct results.
 
 Today's date is ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}.`,
           },
@@ -431,7 +431,7 @@ Does not need:   {"needsSearch": false}
 needsSearch=true: current events, news, live data, prices, sports, weather, specific products/people/companies, recent releases, anything time-sensitive, or topics where facts matter.
 needsSearch=false: math, code, creative writing, translation, general explanations, stable factual concepts.
 
-CRITICAL: You are encouraged to generate multiple diverse search terms (up to 4) to ensure comprehensive results. For example, if asked about a comparison, search for both entities separately.
+CRITICAL: Generate multiple diverse search terms (up to 4). You should include the raw user query as one of the search terms if it's likely to yield high-quality direct results.
 
 Today's date is ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}.`,
           },
@@ -469,10 +469,10 @@ Today's date is ${new Date().toLocaleDateString("en-US", { weekday: "long", year
           const { text: selectorText, cost: selectorCost, promptTokens: sIP, completionTokens: sOP } = await llm(openrouterKey, modelSelector, [
             {
               role: "system",
-              content: `You are a content-selector agent. Your job is to select the most relevant URLs from the provided search results that will best answer the user's query.
-Be thorough and do not be shy with the number of sites you pick—aim for the 4-6 most relevant sources if available.
+              content: `You are a content-selector agent. Your job is to select the most relevant and high-quality URLs from the search results to answer the user's query.
+Be smart and selective: only pick the 3-5 most relevant sources. Avoid picking similar sites or low-value results that would bloat the context.
 Return ONLY valid JSON containing the selected URLs: {"urls": ["https://...", "https://..."]}
-Maximum 6 URLs. Do not explain your choices.`,
+Maximum 5 URLs. Do not explain your choices.`,
             },
             { role: "user", content: `Query: ${query}\n\nResults:\n${snippetList}` },
           ]);
