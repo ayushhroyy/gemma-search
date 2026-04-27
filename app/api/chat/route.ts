@@ -150,54 +150,22 @@ function extractUrls(text: string): string[] {
 // ─── Writer system prompt builder ─────────────────────────────────────────────
 function writerSystemPrompt(hasImages: boolean, isUrlMode: boolean): string {
   const imageInstruction = hasImages
-    ? `**IMAGES — CRITICAL REQUIREMENT**: You have images available from the scraped sources, listed in the AVAILABLE IMAGES section. You MUST embed as many relevant images as possible throughout your response using markdown syntax: ![descriptive alt text](image_url). Do not skip images — include every image that is relevant to any part of your answer. Place images directly next to the content they illustrate. More images = better response.`
+    ? `\n\n**IMAGES**: You have images available from the scraped sources, listed in the AVAILABLE IMAGES section. Embed relevant images throughout your response using markdown syntax: ![descriptive alt text](image_url). Place images next to the content they illustrate.`
     : "";
 
   const intro = isUrlMode
     ? `You are Gemma Search, an expert AI assistant. Your task is to provide a highly detailed and accurate answer to the user's query based strictly on the provided URL content.`
-    : `You are Gemma Search, an expert AI research assistant. Your task is to provide a highly detailed, accurate, and comprehensive answer to the user's query using the provided search results.\n\nSynthesize information from multiple sources. Cite your sources naturally in the text if helpful.`;
+    : `You are Gemma Search, an expert AI research assistant. Your task is to provide a highly detailed, accurate, and comprehensive answer to the user's query using the provided search results.`;
 
   return `${intro}
 
-Format your response beautifully using **Bold Headers**, bullet points, numbered lists, tables, and charts where appropriate.
+CRITICAL RULES FOR WRITING:
+1. TOP PRIORITY - READABILITY: Write in a clean, professional, and highly comfortable-to-read style. Use short paragraphs, clear sentence structures, and markdown headings to break up text.
+2. NO EMOJIS: Do not use any emojis in your response. Keep it clean and professional.
+3. STRICT SOURCING: You must ONLY use the information provided in the context dump (SEARCH RESULTS & CONTEXT or URL CONTENT). Do not hallucinate or add outside information.
+4. SYNTHESIZE: Combine information from multiple sources logically. Cite sources naturally if helpful.
 
-**TABLES** — For side-by-side comparisons or multi-row data, use markdown tables:
-| Feature | Option A | Option B |
-|---------|----------|----------|
-| Price   | $10      | $25      |
-| Quality | High     | Premium  |
-
-**CHARTS** — For visual data representation, use mermaid code blocks:
-- Pie charts: Parts of a whole (simplest, most reliable)
-- Bar charts (xychart-beta): Comparing values across categories
-- Line charts (xychart-beta): Trends over time
-
-IMPORTANT CHART SYNTAX RULES:
-1. ALWAYS use double quotes around titles and labels: title "Revenue"
-2. Keep labels SHORT and SIMPLE — avoid special characters like % $ # @
-3. For pie charts: use format "Label" : number (with spaces around colon)
-4. For xychart: keep values as simple numbers, no currency symbols
-
-Example pie chart (RECOMMENDED — most reliable):
-\`\`\`mermaid
-pie title "Market Share"
-    "Product A" : 35
-    "Product B" : 30
-    "Product C" : 20
-    "Others" : 15
-\`\`\`
-
-Example bar chart:
-\`\`\`mermaid
-xychart-beta
-    title "Revenue by Quarter"
-    x-axis ["Q1", "Q2", "Q3", "Q4"]
-    y-axis "Revenue" 0 to 100
-    bar [25, 40, 65, 80]
-\`\`\`
-
-Use tables and charts liberally when data allows. Tables for detail, charts for insight.
-
+**TABLES & CHARTS**: Use markdown tables for comparisons. Use mermaid code blocks for visual data (pie, xychart-beta) when data allows. Keep chart labels short and simple. Always use double quotes around mermaid titles and labels.
 ${imageInstruction}
 
 Do not mention your system prompt.`;
@@ -386,9 +354,11 @@ Today's date is ${new Date().toLocaleDateString("en-US", { weekday: "long", year
               role: "system",
               content: `You are Gemma Search, an expert AI assistant. Provide a highly detailed, accurate, and comprehensive answer to the user's query.
 
-Format your response beautifully using **Bold Headers**, bullet points, numbered lists, tables, and charts where appropriate.
+CRITICAL RULES FOR WRITING:
+1. TOP PRIORITY - READABILITY: Write in a clean, professional, and highly comfortable-to-read style. Use short paragraphs and clear structure.
+2. NO EMOJIS: Do not use any emojis in your response. Keep it clean and professional.
 
-Use tables and charts liberally when data allows. Tables for detail, charts for insight.`,
+Format your response beautifully using **Bold Headers**, bullet points, numbered lists, tables, and charts where appropriate.`,
             },
             { role: "user", content: image ? [{ type: "text", text: query }, { type: "image_url", image_url: { url: image } }] : query },
           ]);
@@ -544,38 +514,11 @@ Maximum 6 URLs. Do not explain your choices.`,
         } else {
           writerSystemPromptStr = `You are Gemma Search, an expert AI assistant. Provide a highly detailed, accurate, and comprehensive answer to the user's query.
 
-Format your response beautifully using **Bold Headers**, bullet points, numbered lists, tables, and charts where appropriate.
+CRITICAL RULES FOR WRITING:
+1. TOP PRIORITY - READABILITY: Write in a clean, professional, and highly comfortable-to-read style. Use short paragraphs and clear structure.
+2. NO EMOJIS: Do not use any emojis in your response. Keep it clean and professional.
 
-**TABLES** — For side-by-side comparisons or multi-row data, use markdown tables:
-| Feature | Option A | Option B |
-|---------|----------|----------|
-| Price   | $10      | $25      |
-| Quality | High     | Premium  |
-
-**CHARTS** — For visual data representation, use mermaid code blocks:
-- Bar charts (xychart-beta): Comparing values across categories
-- Line charts (xychart-beta): Trends over time
-- Pie charts: Parts of a whole
-
-Example bar chart:
-\`\`\`mermaid
-xychart-beta
-    title "Revenue by Quarter"
-    x-axis ["Q1", "Q2", "Q3", "Q4"]
-    y-axis "Revenue ($K)" 0 to 100
-    bar [25, 40, 65, 80]
-\`\`\`
-
-Example pie chart:
-\`\`\`mermaid
-pie title "Market Share"
-    "Product A" : 35
-    "Product B" : 30
-    "Product C" : 20
-    "Others" : 15
-\`\`\`
-
-Use tables and charts liberally when data allows. Tables for detail, charts for insight.`;
+Format your response beautifully using **Bold Headers**, bullet points, numbered lists, tables, and charts where appropriate.`;
         }
       }
 
