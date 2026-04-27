@@ -261,8 +261,8 @@ export default function HomePage() {
   };
 
   return (
-    <div className={`relative h-screen w-screen overflow-hidden ${mounted ? "" : "no-transition"}`}>
-      <div className="grid-background" style={{ width: "100vw", height: "100vh", position: "fixed" }} />
+    <div className={`relative h-[100dvh] w-screen overflow-hidden ${mounted ? "" : "no-transition"}`}>
+      <div className="grid-background" style={{ width: "100vw", height: "100dvh", position: "fixed" }} />
       <div className="grid-background-spotlight hidden sm:block" />
 
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
@@ -387,8 +387,8 @@ function ChatInterface({
   };
 
   return (
-    <main className="relative z-10 flex h-full flex-col pb-6 pt-16">
-      <div className="flex-1 overflow-y-auto w-full px-4 sm:px-6 py-4">
+    <main className="relative z-10 flex h-full flex-col pb-6 pt-20 sm:pt-24">
+      <div className="flex-1 overflow-y-auto w-full px-4 sm:px-6 py-6 sm:py-4">
         <div className="max-w-3xl w-full mx-auto">
           {messages.map((message, idx) => (
             <ResearchCardMessage key={message.id} message={message} isFirst={idx === 0} />
@@ -549,7 +549,7 @@ function ResearchCardMessage({ message, isFirst }: ResearchCardMessageProps) {
 
 
   return (
-    <div className={`mb-8 ${isFirst ? "" : "mt-12"} animate-fade-in`}>
+    <div className={`mb-8 ${isFirst ? "mt-4 sm:mt-0" : "mt-12"} animate-fade-in`}>
       {isUser ? (
         <div className="flex justify-end mb-8">
           <div className="max-w-lg">
