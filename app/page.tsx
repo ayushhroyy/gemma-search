@@ -492,21 +492,16 @@ function ChatInterface({
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
   const [isFocused, setIsFocused] = useState(false);
   const [userHasScrolledUp, setUserHasScrolledUp] = useState(false);
-  const isProgrammaticScroll = React.useRef(false);
 
   // Smart scrolling
   useEffect(() => {
     if (!userHasScrolledUp) {
-      isProgrammaticScroll.current = true;
       messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
-      requestAnimationFrame(() => {
-        isProgrammaticScroll.current = false;
-      });
     }
   }, [messages, isTyping, userHasScrolledUp, messagesEndRef]);
 
   const handleScroll = () => {
-    if (!scrollContainerRef.current || isProgrammaticScroll.current) return;
+    if (!scrollContainerRef.current) return;
     const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
     // If user is within 100px of the bottom, consider them at the bottom
     const isAtBottom = scrollHeight - scrollTop - clientHeight < 100;
