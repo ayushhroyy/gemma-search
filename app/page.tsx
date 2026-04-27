@@ -226,14 +226,8 @@ export default function HomePage() {
       const decoder = new TextDecoder();
       let buffer = "";
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
-
+      // Helper to process a batch of SSE lines
+      const processLines = (lines: string[]) => {
         for (const line of lines) {
           if (!line.startsWith("data: ")) continue;
           const raw = line.slice(6).trim();
@@ -283,6 +277,23 @@ export default function HomePage() {
             }
           } catch { /* malformed chunk — skip */ }
         }
+      };
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          // Process any remaining lines in buffer before exit
+          if (buffer.trim()) {
+            const remainingLines = buffer.split("\n");
+            processLines(remainingLines);
+          }
+          break;
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        processLines(lines);
       }
       setIsTyping(false);
     } catch (err: unknown) {
@@ -689,6 +700,7 @@ function ResearchCardMessage({ message, isFirst, onEditUserMessage }: ResearchCa
   const isUser = message.role === "user";
   const [copied, setCopied] = useState(false);
   const [userCopied, setUserCopied] = useState(false);
+  const [sourcesCollapsed, setSourcesCollapsed] = useState(false);
 
   const handleCopyAssistant = () => {
     navigator.clipboard.writeText(message.content);
@@ -759,10 +771,33 @@ function ResearchCardMessage({ message, isFirst, onEditUserMessage }: ResearchCa
         </div>
       ) : (
         <div className="max-w-2xl mx-auto">
-          {/* Sources */}
+          {/* Sources with collapse */}
           {message.sources && message.sources.length > 0 && (
-            <div className="mb-6 flex flex-wrap gap-2">
-              {message.sources.map((src, i) => (
+            <div className="mb-6">
+              {/* Collapse bar */}
+              <button
+                onClick={() => setSourcesCollapsed(!sourcesCollapsed)}
+                className="flex items-center gap-2 w-full rounded-lg px-3 py-2 text-xs font-medium transition-all duration-200 hover:bg-[var(--bg-tertiary)]"
+                style={{
+                  backgroundColor: "var(--bg-secondary)",
+                  color: "var(--text-secondary)",
+                  border: "1px solid var(--border-color)",
+                }}
+              >
+                <span className="flex items-center gap-1.5">
+                  <span className="w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-semibold"
+                    style={{ backgroundColor: "var(--bg-tertiary)", color: "var(--accent-color)" }}>
+                    {message.sources.length}
+                  </span>
+                  Sources
+                </span>
+                <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${sourcesCollapsed ? 'rotate-180' : ''}`} />
+              </button>
+
+              {/* Collapsible sources */}
+              {!sourcesCollapsed && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {message.sources.map((src, i) => (
                 <a
                   key={i}
                   href={src.url}
@@ -785,6 +820,8 @@ function ResearchCardMessage({ message, isFirst, onEditUserMessage }: ResearchCa
                   <span className="max-w-[160px] truncate">{src.title}</span>
                 </a>
               ))}
+                </div>
+              )}
             </div>
           )}
 
