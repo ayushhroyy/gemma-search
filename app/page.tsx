@@ -6,12 +6,12 @@ import mermaid from "mermaid";
 
 // ─── Gemma Models ─────────────────────────────────────────────────────────────
 const GEMMA_MODELS = [
-  { id: "google/gemma-4-31b-it",   label: "Gemma 4 31B" },
+  { id: "google/gemma-4-31b-it",    label: "Gemma 4 31B" },
   { id: "google/gemma-4-26b-a4b-it", label: "Gemma 4 26B" },
-  { id: "google/gemma-3-27b-it",   label: "Gemma 3 27B" },
-  { id: "google/gemma-3-12b-it",   label: "Gemma 3 12B" },
-  { id: "google/gemma-3-4b-it",    label: "Gemma 3 4B" },
-  { id: "google/gemma-3n-e4b-it",  label: "Gemma 3n E4B" },
+  { id: "google/gemma-3-27b-it",    label: "Gemma 3 27B" },
+  { id: "google/gemma-3-12b-it",    label: "Gemma 3 12B" },
+  { id: "google/gemma-3-4b-it",     label: "Gemma 3 4B" },
+  { id: "google/gemma-3n-e4b-it",   label: "Gemma 3n E4B" },
 ] as const;
 
 type GemmaModelId = typeof GEMMA_MODELS[number]["id"];
@@ -20,12 +20,18 @@ interface ModelConfig {
   router:   GemmaModelId;
   selector: GemmaModelId;
   writer:   GemmaModelId;
+  /** Uni-model mode: one model handles routing + writing */
+  uniMode:  boolean;
+  /** The model used in uni mode */
+  uni:      GemmaModelId;
 }
 
 const DEFAULT_MODELS: ModelConfig = {
   router:   "google/gemma-4-31b-it",
   selector: "google/gemma-4-26b-a4b-it",
   writer:   "google/gemma-3-12b-it",
+  uniMode:  false,
+  uni:      "google/gemma-4-31b-it",
 };
 
 interface Source {
@@ -42,6 +48,8 @@ interface Message {
   status?: string;
   sources?: Source[];
   image?: string;
+  /** Total cost of all LLM calls for this response, in USD */
+  cost?: number;
 }
 
 export default function HomePage() {
@@ -249,6 +257,12 @@ export default function HomePage() {
             if (parsed.type === "error") {
               initAI({ content: `Error: ${parsed.message}`, status: undefined });
               patchAI({ content: `Error: ${parsed.message}`, status: undefined });
+              continue;
+            }
+
+            // Cost event — emitted after the stream ends
+            if (parsed.type === "cost") {
+              patchAI({ cost: parsed.value as number });
               continue;
             }
 
@@ -794,9 +808,9 @@ function ResearchCardMessage({ message, isFirst, onEditUserMessage }: ResearchCa
             )}
           </article>
 
-          {/* Assistant action buttons */}
+          {/* Assistant action buttons + cost badge */}
           {message.content && (
-            <div className="flex gap-2 mt-4">
+            <div className="flex items-center gap-2 mt-4 flex-wrap">
               <button
                 onClick={handleCopyAssistant}
                 className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs border transition-all duration-150 hover:scale-[1.02]"
@@ -821,6 +835,10 @@ function ResearchCardMessage({ message, isFirst, onEditUserMessage }: ResearchCa
                 <Download className="w-3.5 h-3.5" />
                 <span>Download .md</span>
               </button>
+              {/* Cost badge — shown once cost is received */}
+              {typeof message.cost === "number" && (
+                <CostBadge cost={message.cost} />
+              )}
             </div>
           )}
         </div>
@@ -1221,11 +1239,10 @@ function initializeMermaid() {
 
 function MermaidChart({ code, id }: { code: string; id: string }) {
   const [svg, setSvg] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    // Lazy initialize mermaid only in browser
     if (typeof window !== "undefined") {
       initializeMermaid();
       mermaid.render(id, code)
@@ -1233,27 +1250,16 @@ function MermaidChart({ code, id }: { code: string; id: string }) {
           if (!cancelled) setSvg(svg);
         })
         .catch((err) => {
-          if (!cancelled) setError("Chart unavailable");
+          // Silently discard — never show mermaid errors to the user
+          console.debug("[MermaidChart] render failed:", err);
+          if (!cancelled) setFailed(true);
         });
     }
     return () => { cancelled = true; };
   }, [code, id]);
 
-  if (error) {
-    return (
-      <div className="mb-4 rounded-xl p-4 text-sm" style={{ backgroundColor: "var(--bg-tertiary)", color: "var(--text-tertiary)" }}>
-        {error}
-      </div>
-    );
-  }
-
-  if (!svg) {
-    return (
-      <div className="mb-4 rounded-xl p-4 text-sm animate-pulse" style={{ backgroundColor: "var(--bg-tertiary)", color: "var(--text-tertiary)" }}>
-        Rendering chart…
-      </div>
-    );
-  }
+  // On error or still loading — render nothing visible
+  if (failed || !svg) return null;
 
   return (
     <div
@@ -1418,15 +1424,17 @@ function RenderableImage({ alt, src }: { alt: string; src: string }) {
 
   return (
     <>
-      <img
-        src={src}
-        alt={alt}
-        className="inline-block max-h-[400px] w-auto rounded-lg cursor-pointer my-4"
-        style={{ boxShadow: "var(--shadow-subtle)" }}
-        onClick={() => setIsOpen(true)}
-        onError={() => setError(true)}
-        loading="lazy"
-      />
+      <div className="flex justify-center my-4">
+        <img
+          src={src}
+          alt={alt}
+          className="block max-h-[480px] w-auto max-w-full rounded-lg cursor-pointer"
+          style={{ boxShadow: "var(--shadow-subtle)" }}
+          onClick={() => setIsOpen(true)}
+          onError={() => setError(true)}
+          loading="lazy"
+        />
+      </div>
       {isOpen && <ImageModal src={src} alt={alt} onClose={() => setIsOpen(false)} />}
     </>
   );
@@ -1577,9 +1585,35 @@ function MarkdownContent({ content }: { content: string }) {
   return <>{nodes}</>;
 }
 
+// ─── Cost Badge ───────────────────────────────────────────────────────────────
+
+function CostBadge({ cost }: { cost: number }) {
+  // Format: show at least 4 significant digits, e.g. $0.000123 or $0.0023
+  const formatted = cost === 0
+    ? "$0.0000"
+    : cost < 0.0001
+    ? `$${cost.toExponential(2)}`
+    : `$${cost.toFixed(Math.max(4, 2 - Math.floor(Math.log10(cost))))}`;
+
+  return (
+    <div
+      className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs border ml-auto"
+      style={{
+        backgroundColor: "var(--bg-secondary)",
+        borderColor: "var(--border-color)",
+        color: "var(--text-tertiary)",
+      }}
+      title="Total cost of all LLM calls for this response (via OpenRouter)"
+    >
+      <span style={{ color: "var(--accent-color)", fontWeight: 600 }}>⚡</span>
+      <span>{formatted}</span>
+    </div>
+  );
+}
+
 // ─── Model Picker ─────────────────────────────────────────────────────────────
 
-const AGENT_LABELS: Record<keyof ModelConfig, string> = {
+const AGENT_LABELS: Record<"router" | "selector" | "writer", string> = {
   router:   "Router",
   selector: "Selector",
   writer:   "Writer",
@@ -1598,6 +1632,8 @@ function ModelPicker({ config, onChange }: { config: ModelConfig; onChange: (c: 
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
+  const toggleUniMode = () => onChange({ ...config, uniMode: !config.uniMode });
+
   return (
     <div ref={ref} className="relative">
       <button
@@ -1605,54 +1641,112 @@ function ModelPicker({ config, onChange }: { config: ModelConfig; onChange: (c: 
         className="flex items-center gap-1.5 rounded-xl px-2.5 sm:px-3 py-2 text-xs font-medium transition-all duration-200 active:scale-95"
         style={{
           backgroundColor: open ? "var(--bg-tertiary)" : "var(--bg-secondary)",
-          color: "var(--text-secondary)",
+          color: config.uniMode ? "var(--accent-color)" : "var(--text-secondary)",
           boxShadow: "var(--shadow-subtle)",
         }}
         aria-label="Select agent models"
       >
         <Cpu className="h-3.5 w-3.5" style={{ color: "var(--accent-color)" }} />
-        <span className="hidden sm:inline">Models</span>
+        <span className="hidden sm:inline">{config.uniMode ? "Uni" : "Models"}</span>
         <ChevronDown className={`h-3 w-3 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
       </button>
 
       {open && (
         <div
-          className="absolute right-0 top-full mt-2 w-64 sm:w-72 rounded-2xl border p-4 z-50"
+          className="absolute right-0 top-full mt-2 w-72 rounded-2xl border p-4 z-50"
           style={{
             backgroundColor: "var(--bg-secondary)",
             borderColor: "var(--border-color)",
             boxShadow: "var(--shadow-elevated)",
           }}
         >
-          <p className="text-[11px] font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--text-tertiary)" }}>
-            Agent Models
-          </p>
-          <div className="space-y-3">
-            {(Object.keys(AGENT_LABELS) as (keyof ModelConfig)[]).map((agent) => (
-              <div key={agent} className="flex items-center justify-between gap-3">
-                <span className="text-xs font-medium w-16 flex-shrink-0" style={{ color: "var(--text-secondary)" }}>
-                  {AGENT_LABELS[agent]}
-                </span>
-                <select
-                  value={config[agent]}
-                  onChange={(e) => onChange({ ...config, [agent]: e.target.value as GemmaModelId })}
-                  className="flex-1 rounded-lg px-2.5 py-1.5 text-xs border appearance-none cursor-pointer outline-none"
-                  style={{
-                    backgroundColor: "var(--bg-tertiary)",
-                    borderColor: "var(--border-color)",
-                    color: "var(--text-primary)",
-                  }}
-                >
-                  {GEMMA_MODELS.map((m) => (
-                    <option key={m.id} value={m.id}>{m.label}</option>
-                  ))}
-                </select>
-              </div>
-            ))}
+          {/* ── Uni Mode Toggle ─────────────────────────────────────── */}
+          <div
+            className="flex items-center justify-between mb-4 pb-4"
+            style={{ borderBottom: "1px solid var(--border-color)" }}
+          >
+            <div>
+              <p className="text-xs font-semibold" style={{ color: "var(--text-primary)" }}>Uni Mode</p>
+              <p className="text-[10px] mt-0.5" style={{ color: "var(--text-tertiary)" }}>
+                One model · route + write
+              </p>
+            </div>
+            {/* Pill toggle */}
+            <button
+              onClick={toggleUniMode}
+              className="relative flex-shrink-0 w-11 h-6 rounded-full transition-colors duration-200"
+              style={{
+                backgroundColor: config.uniMode ? "var(--accent-color)" : "var(--bg-tertiary)",
+                border: "1px solid var(--border-color)",
+              }}
+              aria-pressed={config.uniMode}
+              aria-label="Toggle Uni Mode"
+            >
+              <span
+                className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-200"
+                style={{ transform: config.uniMode ? "translateX(20px)" : "translateX(0px)" }}
+              />
+            </button>
           </div>
-          <p className="text-[10px] mt-3 leading-snug" style={{ color: "var(--text-tertiary)" }}>
-            All models via OpenRouter · Changes apply to next query
-          </p>
+
+          {config.uniMode ? (
+            /* ── Uni model selector ─────────────────────────────────── */
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--text-tertiary)" }}>
+                Uni Model
+              </p>
+              <select
+                value={config.uni}
+                onChange={(e) => onChange({ ...config, uni: e.target.value as GemmaModelId })}
+                className="w-full rounded-lg px-2.5 py-1.5 text-xs border appearance-none cursor-pointer outline-none"
+                style={{
+                  backgroundColor: "var(--bg-tertiary)",
+                  borderColor: "var(--border-color)",
+                  color: "var(--text-primary)",
+                }}
+              >
+                {GEMMA_MODELS.map((m) => (
+                  <option key={m.id} value={m.id}>{m.label}</option>
+                ))}
+              </select>
+              <p className="text-[10px] mt-3 leading-snug" style={{ color: "var(--text-tertiary)" }}>
+                Single model handles routing &amp; writing · 2 LLM calls max (search) or 1 (direct)
+              </p>
+            </div>
+          ) : (
+            /* ── 3-agent selectors ──────────────────────────────────── */
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--text-tertiary)" }}>
+                Agent Models
+              </p>
+              <div className="space-y-3">
+                {(Object.keys(AGENT_LABELS) as ("router" | "selector" | "writer")[]).map((agent) => (
+                  <div key={agent} className="flex items-center justify-between gap-3">
+                    <span className="text-xs font-medium w-16 flex-shrink-0" style={{ color: "var(--text-secondary)" }}>
+                      {AGENT_LABELS[agent]}
+                    </span>
+                    <select
+                      value={config[agent]}
+                      onChange={(e) => onChange({ ...config, [agent]: e.target.value as GemmaModelId })}
+                      className="flex-1 rounded-lg px-2.5 py-1.5 text-xs border appearance-none cursor-pointer outline-none"
+                      style={{
+                        backgroundColor: "var(--bg-tertiary)",
+                        borderColor: "var(--border-color)",
+                        color: "var(--text-primary)",
+                      }}
+                    >
+                      {GEMMA_MODELS.map((m) => (
+                        <option key={m.id} value={m.id}>{m.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[10px] mt-3 leading-snug" style={{ color: "var(--text-tertiary)" }}>
+                All models via OpenRouter · Changes apply to next query
+              </p>
+            </div>
+          )}
         </div>
       )}
     </div>
