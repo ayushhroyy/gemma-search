@@ -152,7 +152,7 @@ function extractUrls(text: string): string[] {
 // ─── Writer system prompt builder ─────────────────────────────────────────────
 function writerSystemPrompt(hasImages: boolean, isUrlMode: boolean): string {
   const imageInstruction = hasImages
-    ? `**IMAGES**: You have images available from the scraped sources. RARELY use images—include only 1 or 2 if they are exceptionally illustrative. Do not include redundant or irrelevant images. Embed using: ![descriptive alt](image_url).`
+    ? `**IMAGES**: You have images available from the scraped sources. Use them where very relevant or appropriate to illustrate your answer. Embed using: ![descriptive alt](image_url).`
     : "";
 
   const intro = isUrlMode
@@ -164,7 +164,7 @@ function writerSystemPrompt(hasImages: boolean, isUrlMode: boolean): string {
 **STYLE & STRUCTURE:**
 - Write in clear, concise, and direct paragraphs.
 - Use **Bold Headers**, bullet points, and numbered lists to make the answer scannable.
-- DO NOT use tables or mermaid charts unless they are absolutely unavoidable for basic clarity. Prefer well-structured text.
+- Use tables or mermaid charts where very relevant or appropriate to organize data or provide insights.
 - Be objective, direct, and avoid unnecessary filler.
 
 ${imageInstruction}
@@ -358,7 +358,7 @@ Today's date is ${new Date().toLocaleDateString("en-US", { weekday: "long", year
 
 - Write in clear, concise paragraphs. Avoid repetition.
 - Use **Bold Headers** and lists to make the text scannable.
-- DO NOT use tables or charts unless absolutely necessary for basic clarity.`,
+- Use tables or charts where very relevant or appropriate.`,
             },
             { role: "user", content: image ? [{ type: "text", text: query }, { type: "image_url", image_url: { url: image } }] : query },
           ], true);
@@ -533,7 +533,7 @@ Maximum 3 URLs. Do not explain your choices.`,
 
 - Write in clear, concise paragraphs. Avoid repetition.
 - Use **Bold Headers** and lists to make the text scannable.
-- DO NOT use tables or charts unless absolutely necessary for basic clarity.`;
+- Use tables or charts where very relevant or appropriate.`;
         }
       }
 
