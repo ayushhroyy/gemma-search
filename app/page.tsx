@@ -231,7 +231,7 @@ export default function HomePage() {
         for (const line of lines) {
           if (!line.startsWith("data: ")) continue;
           const raw = line.slice(6).trim();
-          if (raw === "[DONE]") break;
+          if (raw === "[DONE]") continue;
 
           try {
             const parsed = JSON.parse(raw);
@@ -1257,6 +1257,7 @@ function initializeMermaid() {
   mermaidInitialized = true;
   mermaid.initialize({
     startOnLoad: false,
+    suppressErrorRendering: true,
     theme: "base",
     themeVariables: {
       primaryColor: "#6366f1",
@@ -1290,6 +1291,11 @@ function MermaidChart({ code, id }: { code: string; id: string }) {
           // Silently discard — never show mermaid errors to the user
           console.debug("[MermaidChart] render failed:", err);
           if (!cancelled) setFailed(true);
+          // Remove any error SVGs injected by Mermaid
+          const errorSvg = document.getElementById(id);
+          if (errorSvg) errorSvg.remove();
+          const dErrorSvg = document.getElementById(`d${id}`);
+          if (dErrorSvg) dErrorSvg.remove();
         });
     }
     return () => { cancelled = true; };
