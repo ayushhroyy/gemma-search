@@ -15,6 +15,7 @@ interface Message {
   content: string;
   timestamp: Date;
   sources?: Source[];
+  status?: string;
 }
 
 export default function HomePage() {
@@ -126,6 +127,24 @@ export default function HomePage() {
     setIsTyping(true);
 
     const aiId = (Date.now() + 1).toString();
+    let initialized = false;
+
+    /** Add or update the AI message in state */
+    const patchAI = (patch: Partial<Message>) =>
+      setMessages((prev) =>
+        prev.map((m) => (m.id === aiId ? { ...m, ...patch } : m))
+      );
+
+    /** Lazily create the AI message on first meaningful event */
+    const initAI = (patch: Partial<Message> = {}) => {
+      if (initialized) return;
+      initialized = true;
+      setMessages((prev) => [
+        ...prev,
+        { id: aiId, role: "assistant", content: "", timestamp: new Date(), ...patch },
+      ]);
+      setIsTyping(false);
+    };
 
     try {
       const res = await fetch("/api/chat", {
@@ -139,7 +158,6 @@ export default function HomePage() {
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
-      let initialized = false;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -157,49 +175,50 @@ export default function HomePage() {
           try {
             const parsed = JSON.parse(raw);
 
-            // First event: sources
-            if (parsed.type === "sources") {
-              setMessages((prev) => [
-                ...prev,
-                { id: aiId, role: "assistant", content: "", timestamp: new Date(), sources: parsed.data },
-              ]);
-              setIsTyping(false);
-              initialized = true;
+            if (parsed.type === "status") {
+              initAI({ status: parsed.message });
+              if (initialized) patchAI({ status: parsed.message });
               continue;
             }
 
-            // LLM token
+            if (parsed.type === "sources") {
+              initAI({ sources: parsed.data });
+              patchAI({ sources: parsed.data });
+              continue;
+            }
+
+            if (parsed.type === "error") {
+              initAI({ content: `Error: ${parsed.message}`, status: undefined });
+              patchAI({ content: `Error: ${parsed.message}`, status: undefined });
+              continue;
+            }
+
+            // Writer token
             const token: string = parsed.choices?.[0]?.delta?.content ?? "";
             if (!token) continue;
 
             if (!initialized) {
-              setMessages((prev) => [
-                ...prev,
-                { id: aiId, role: "assistant", content: token, timestamp: new Date() },
-              ]);
-              setIsTyping(false);
-              initialized = true;
+              initAI({ content: token, status: undefined });
             } else {
               setMessages((prev) =>
-                prev.map((m) => (m.id === aiId ? { ...m, content: m.content + token } : m))
+                prev.map((m) =>
+                  m.id === aiId
+                    ? { ...m, content: m.content + token, status: undefined }
+                    : m
+                )
               );
             }
-          } catch {
-            // malformed chunk — skip
-          }
+          } catch { /* malformed chunk — skip */ }
         }
       }
     } catch {
       setIsTyping(false);
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: aiId,
-          role: "assistant",
-          content: "Something went wrong. Please try again.",
-          timestamp: new Date(),
-        },
-      ]);
+      if (!initialized) {
+        setMessages((prev) => [
+          ...prev,
+          { id: aiId, role: "assistant", content: "Something went wrong. Please try again.", timestamp: new Date() },
+        ]);
+      }
     }
   };
 
@@ -657,7 +676,20 @@ function ResearchCardMessage({ message, isFirst }: ResearchCardMessageProps) {
           {/* Content */}
           <article className="prose-readable" style={{ fontFamily: "var(--font-body)" }}>
             {message.content ? renderContent(message.content) : (
-              <p style={{ color: "var(--text-tertiary)", fontSize: "0.9rem" }}>Searching the web…</p>
+              <div className="flex items-center gap-2.5 py-2">
+                <div className="flex gap-1">
+                  {[0, 150, 300].map((delay) => (
+                    <span
+                      key={delay}
+                      className="w-1.5 h-1.5 rounded-full animate-bounce"
+                      style={{ backgroundColor: "var(--accent-color)", animationDelay: `${delay}ms` }}
+                    />
+                  ))}
+                </div>
+                <span style={{ color: "var(--text-tertiary)", fontSize: "0.85rem" }}>
+                  {message.status ?? "Thinking…"}
+                </span>
+              </div>
             )}
           </article>
         </div>
