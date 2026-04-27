@@ -1107,7 +1107,7 @@ function ModelPicker({ config, onChange }: { config: ModelConfig; onChange: (c: 
 
       {open && (
         <div
-          className="absolute right-0 top-full mt-2 w-64 sm:w-72 rounded-2xl border p-4 z-50 animate-fade-in"
+          className="absolute right-0 top-full mt-2 w-64 sm:w-72 rounded-2xl border p-4 z-50"
           style={{
             backgroundColor: "var(--bg-secondary)",
             borderColor: "var(--border-color)",
