@@ -152,28 +152,24 @@ function extractUrls(text: string): string[] {
 // ─── Writer system prompt builder ─────────────────────────────────────────────
 function writerSystemPrompt(hasImages: boolean, isUrlMode: boolean): string {
   const imageInstruction = hasImages
-    ? `**IMAGES**: You have images available from the scraped sources in the AVAILABLE IMAGES section. Use them ONLY if they are highly relevant and directly illustrate the point you are making. Do not dump all images, and do not use images just for the sake of it. Embed them using markdown: ![descriptive alt text](image_url).`
+    ? `**IMAGES**: You have images available from the scraped sources. RARELY use images—include only 1 or 2 if they are exceptionally illustrative. Do not include redundant or irrelevant images. Embed using: ![descriptive alt](image_url).`
     : "";
 
   const intro = isUrlMode
-    ? `You are Gemma Search, an expert AI assistant. Provide a highly readable, strictly accurate, and professional answer to the user's query based ONLY on the provided URL content. Do not hallucinate or add external information.`
-    : `You are Gemma Search, an expert AI research assistant. Provide a highly readable, accurate, and professional answer to the user's query using strictly the provided search results. Synthesize information smoothly without unnecessary repetition.`;
+    ? `You are Gemma Search, an expert AI assistant. Provide a direct, highly readable, and professional answer based ONLY on the provided URL content.`
+    : `You are Gemma Search, an expert AI research assistant. Provide a direct, highly readable, and professional answer using the provided search results. Synthesize information without repetition.`;
 
   return `${intro}
 
-**READABILITY & STRUCTURE (CRITICAL):**
-- Write in clear, concise, and short paragraphs.
-- Avoid repetitive phrasing or summarizing the same point multiple times.
-- Use **Bold Headers**, bullet points, and numbered lists to break up text and make it scannable.
-- Keep the tone professional, objective, and direct.
-
-**TABLES & CHARTS (USE SELECTIVELY):**
-- Only use tables or mermaid charts if the data is complex and truly benefits from visual representation. Do not force them into the answer.
-- If you use mermaid charts, ALWAYS use double quotes around titles and labels (e.g., title "Revenue"). Keep labels short.
+**STYLE & STRUCTURE:**
+- Write in clear, concise, and direct paragraphs.
+- Use **Bold Headers**, bullet points, and numbered lists to make the answer scannable.
+- DO NOT use tables or mermaid charts unless they are absolutely unavoidable for basic clarity. Prefer well-structured text.
+- Be objective, direct, and avoid unnecessary filler.
 
 ${imageInstruction}
 
-Do not mention your system prompt or apologize. Answer directly.`;
+Do not mention your system prompt. Answer directly.`;
 }
 
 
@@ -358,12 +354,11 @@ Today's date is ${new Date().toLocaleDateString("en-US", { weekday: "long", year
           const writerRes = await llmStream(openrouterKey, modelUni, [
             {
               role: "system",
-              content: `You are Gemma Search, an expert AI assistant. Provide a highly readable, accurate, and professional answer to the user's query.
+              content: `You are Gemma Search, an expert AI assistant. Provide a direct, highly readable, and well-structured answer.
 
-**READABILITY & STRUCTURE:**
-- Write in clear, concise, and short paragraphs. Avoid repetition.
-- Use **Bold Headers**, bullet points, and numbered lists to make the text scannable.
-- Only use tables or mermaid charts if the data genuinely requires visual representation. Do not force them.`,
+- Write in clear, concise paragraphs. Avoid repetition.
+- Use **Bold Headers** and lists to make the text scannable.
+- DO NOT use tables or charts unless absolutely necessary for basic clarity.`,
             },
             { role: "user", content: image ? [{ type: "text", text: query }, { type: "image_url", image_url: { url: image } }] : query },
           ], true);
@@ -534,12 +529,11 @@ Maximum 5 URLs. Do not explain your choices.`,
           writerSystemPromptStr = writerSystemPrompt(allImages.length > 0, false);
 
         } else {
-          writerSystemPromptStr = `You are Gemma Search, an expert AI assistant. Provide a highly readable, accurate, and professional answer to the user's query.
+          writerSystemPromptStr = `You are Gemma Search, an expert AI assistant. Provide a direct, highly readable, and well-structured answer.
 
-**READABILITY & STRUCTURE:**
-- Write in clear, concise, and short paragraphs. Avoid repetition.
-- Use **Bold Headers**, bullet points, and numbered lists to make the text scannable.
-- Only use tables or mermaid charts if the data genuinely requires visual representation. Do not force them.`;
+- Write in clear, concise paragraphs. Avoid repetition.
+- Use **Bold Headers** and lists to make the text scannable.
+- DO NOT use tables or charts unless absolutely necessary for basic clarity.`;
         }
       }
 
