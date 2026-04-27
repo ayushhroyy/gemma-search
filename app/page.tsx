@@ -3,11 +3,18 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Menu, X, Plus, Sun, Moon, ArrowRight, Paperclip } from "lucide-react";
 
+interface Source {
+  title: string;
+  url: string;
+  snippet: string;
+}
+
 interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
   timestamp: Date;
+  sources?: Source[];
 }
 
 export default function HomePage() {
@@ -102,13 +109,14 @@ export default function HomePage() {
     setShowPlaceholder(e.target.value === "");
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!searchQuery.trim()) return;
 
+    const query = searchQuery.trim();
     const userMessage: Message = {
       id: Date.now().toString(),
       role: "user",
-      content: searchQuery,
+      content: query,
       timestamp: new Date(),
     };
 
@@ -117,41 +125,82 @@ export default function HomePage() {
     setIsChatMode(true);
     setIsTyping(true);
 
-    // Simulate AI streaming response
-    setTimeout(() => {
-      const aiResponse: Message = {
-        id: (Date.now() + 1).toString(),
-        role: "assistant",
-        content: `Based on my research across multiple sources, here's a comprehensive answer to your query.
+    const aiId = (Date.now() + 1).toString();
 
-**Overview**
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query }),
+      });
 
-The topic you've asked about has several important dimensions worth exploring. Recent studies and expert consensus suggest that this area has evolved significantly over the past few years, with new methodologies and approaches emerging regularly.
+      if (!res.ok || !res.body) throw new Error("Request failed");
 
-**Key Points**
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let initialized = false;
 
-* The fundamental concepts underlying this topic have their roots in established research traditions, with modern interpretations building upon decades of scholarly work
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-* Contemporary research has expanded our knowledge considerably, with peer-reviewed studies from leading institutions providing robust evidence for several key claims
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
 
-* These findings have real-world implications across multiple domains, from academic research to practical implementations in various industries
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const raw = line.slice(6).trim();
+          if (raw === "[DONE]") break;
 
-**In Detail**
+          try {
+            const parsed = JSON.parse(raw);
 
-1. **Historical Context**: Understanding the origins helps us appreciate how we arrived at current approaches. Early research laid the groundwork for today's methodologies.
+            // First event: sources
+            if (parsed.type === "sources") {
+              setMessages((prev) => [
+                ...prev,
+                { id: aiId, role: "assistant", content: "", timestamp: new Date(), sources: parsed.data },
+              ]);
+              setIsTyping(false);
+              initialized = true;
+              continue;
+            }
 
-2. **Current State**: Modern developments have accelerated rapidly. Recent publications and conferences demonstrate the field's momentum and growing interest.
+            // LLM token
+            const token: string = parsed.choices?.[0]?.delta?.content ?? "";
+            if (!token) continue;
 
-3. **Future Directions**: Emerging trends suggest continued evolution. Experts predict significant advancements in the coming years.
-
-**Conclusion**
-
-Further investigation reveals nuanced perspectives that challenge conventional wisdom. The interconnectedness of these domains offers rich opportunities for deeper understanding.`,
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, aiResponse]);
+            if (!initialized) {
+              setMessages((prev) => [
+                ...prev,
+                { id: aiId, role: "assistant", content: token, timestamp: new Date() },
+              ]);
+              setIsTyping(false);
+              initialized = true;
+            } else {
+              setMessages((prev) =>
+                prev.map((m) => (m.id === aiId ? { ...m, content: m.content + token } : m))
+              );
+            }
+          } catch {
+            // malformed chunk — skip
+          }
+        }
+      }
+    } catch {
       setIsTyping(false);
-    }, 2500);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: aiId,
+          role: "assistant",
+          content: "Something went wrong. Please try again.",
+          timestamp: new Date(),
+        },
+      ]);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -570,28 +619,47 @@ function ResearchCardMessage({ message, isFirst }: ResearchCardMessageProps) {
                 color: "var(--text-primary)",
               }}
             >
-              <p className="text-[0.95rem] leading-relaxed">
-                {message.content}
-              </p>
+              <p className="text-[0.95rem] leading-relaxed">{message.content}</p>
             </div>
           </div>
         </div>
       ) : (
         <div className="max-w-2xl mx-auto">
-          {/* Content area - clean and spacious */}
-          <article className="prose-readable" style={{ fontFamily: "var(--font-body)" }}>
-            {renderContent(message.content)}
-          </article>
+          {/* Sources */}
+          {message.sources && message.sources.length > 0 && (
+            <div className="mb-6 flex flex-wrap gap-2">
+              {message.sources.map((src, i) => (
+                <a
+                  key={i}
+                  href={src.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs transition-all duration-200 hover:scale-[1.03]"
+                  style={{
+                    backgroundColor: "var(--bg-secondary)",
+                    borderColor: "var(--border-color)",
+                    color: "var(--text-tertiary)",
+                  }}
+                  title={src.snippet}
+                >
+                  <span
+                    className="w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-semibold flex-shrink-0"
+                    style={{ backgroundColor: "var(--bg-tertiary)", color: "var(--accent-color)" }}
+                  >
+                    {i + 1}
+                  </span>
+                  <span className="max-w-[160px] truncate">{src.title}</span>
+                </a>
+              ))}
+            </div>
+          )}
 
-          {/* Subtle footer */}
-          <div className="mt-8 pt-5 flex items-center justify-center gap-4" style={{ borderTop: "1px solid var(--border-color)" }}>
-            <button className="text-xs font-medium px-4 py-2 rounded-full transition-all duration-200" style={{ color: "var(--text-tertiary)", backgroundColor: "var(--bg-tertiary)" }}>
-              View sources
-            </button>
-            <button className="text-xs font-medium px-4 py-2 rounded-full transition-all duration-200" style={{ color: "var(--text-tertiary)", backgroundColor: "var(--bg-tertiary)" }}>
-              Related
-            </button>
-          </div>
+          {/* Content */}
+          <article className="prose-readable" style={{ fontFamily: "var(--font-body)" }}>
+            {message.content ? renderContent(message.content) : (
+              <p style={{ color: "var(--text-tertiary)", fontSize: "0.9rem" }}>Searching the web…</p>
+            )}
+          </article>
         </div>
       )}
     </div>
