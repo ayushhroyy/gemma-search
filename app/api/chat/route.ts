@@ -16,7 +16,7 @@ const OR_HEADERS = (key: string) => ({
 });
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-interface ORMessage { role: string; content: string }
+interface ORMessage { role: string; content: any }
 interface SerperOrganic { title: string; link: string; snippet: string }
 interface Models { router?: string; selector?: string; writer?: string }
 
@@ -93,7 +93,7 @@ function extractUrls(text: string): string[] {
 // ─── Route ────────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { query, models = {} }: { query: string; models: Models } = body;
+  const { query, models = {}, image }: { query: string; models: Models; image?: string } = body;
 
   if (!query?.trim()) return Response.json({ error: "Query required" }, { status: 400 });
 
@@ -229,9 +229,16 @@ Format your response beautifully using **Bold Headers**, bullet points, and numb
       // ── Writer (streamed) ─────────────────────────────────────────────────
       await emit({ type: "status", message: "Writing response…" });
 
+      const writerUserContent = image 
+        ? [
+            { type: "text", text: finalUserContent },
+            { type: "image_url", image_url: { url: image } }
+          ]
+        : finalUserContent;
+
       const writerRes = await llmStream(openrouterKey, modelWriter, [
         { role: "system", content: writerPrompt },
-        { role: "user",   content: finalUserContent },
+        { role: "user",   content: writerUserContent },
       ]);
 
       const reader = writerRes.body!.getReader();

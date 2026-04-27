@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { Menu, X, Plus, Sun, Moon, ArrowRight, Paperclip, ChevronDown, Cpu } from "lucide-react";
+import { Menu, X, Plus, Sun, Moon, ArrowRight, Paperclip, ChevronDown, Cpu, Square, Copy, Download, Pencil, Check } from "lucide-react";
 
 // ─── Gemma Models ─────────────────────────────────────────────────────────────
 const GEMMA_MODELS = [
@@ -38,8 +38,9 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   timestamp: Date;
-  sources?: Source[];
   status?: string;
+  sources?: Source[];
+  image?: string;
 }
 
 export default function HomePage() {
@@ -58,7 +59,35 @@ export default function HomePage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [modelConfig, setModelConfig] = useState<ModelConfig>(DEFAULT_MODELS);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  const stopStream = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+      setIsTyping(false);
+      setMessages((prev) => {
+        const last = prev[prev.length - 1];
+        if (last && last.role === "assistant" && !last.content) {
+          return prev.map(m => m.id === last.id ? { ...m, content: "Stream stopped.", status: undefined } : m);
+        }
+        return prev;
+      });
+    }
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => setSelectedImage(reader.result as string);
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeImage = () => setSelectedImage(null);
 
   const placeholders = [
     "Send a message...",
@@ -134,18 +163,21 @@ export default function HomePage() {
   };
 
   const handleSubmit = async () => {
-    if (!searchQuery.trim()) return;
+    if (!searchQuery.trim() && !selectedImage) return;
 
     const query = searchQuery.trim();
+    const imageToSend = selectedImage;
     const userMessage: Message = {
       id: Date.now().toString(),
       role: "user",
       content: query,
       timestamp: new Date(),
+      image: imageToSend || undefined,
     };
 
     setMessages((prev) => [...prev, userMessage]);
     setSearchQuery("");
+    setSelectedImage(null);
     setIsChatMode(true);
     setIsTyping(true);
 
@@ -169,11 +201,15 @@ export default function HomePage() {
       setIsTyping(false);
     };
 
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query, models: modelConfig }),
+        body: JSON.stringify({ query, models: modelConfig, image: imageToSend }),
+        signal: controller.signal,
       });
 
       if (!res.ok || !res.body) throw new Error("Request failed");
@@ -234,13 +270,18 @@ export default function HomePage() {
           } catch { /* malformed chunk — skip */ }
         }
       }
-    } catch {
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === "AbortError") return;
       setIsTyping(false);
       if (!initialized) {
         setMessages((prev) => [
           ...prev,
           { id: aiId, role: "assistant", content: "Something went wrong. Please try again.", timestamp: new Date() },
         ]);
+      }
+    } finally {
+      if (abortControllerRef.current === controller) {
+        abortControllerRef.current = null;
       }
     }
   };
@@ -253,9 +294,11 @@ export default function HomePage() {
   };
 
   const startNewChat = () => {
+    stopStream();
     setIsChatMode(false);
     setMessages([]);
     setSearchQuery("");
+    setSelectedImage(null);
   };
 
   return (
@@ -288,6 +331,10 @@ export default function HomePage() {
           placeholderIndex={placeholderIndex}
           showPlaceholder={showPlaceholder}
           messagesEndRef={messagesEndRef}
+          onStop={stopStream}
+          onAttach={handleImageUpload}
+          selectedImage={selectedImage}
+          onRemoveImage={removeImage}
         />
       ) : (
         <LandingInterface
@@ -297,6 +344,11 @@ export default function HomePage() {
           onKeyDown={handleKeyDown}
           placeholder={showPlaceholder ? placeholders[placeholderIndex] : ""}
           onSuggestionClick={setSearchQuery}
+          isTyping={isTyping}
+          onStop={stopStream}
+          onAttach={handleImageUpload}
+          selectedImage={selectedImage}
+          onRemoveImage={removeImage}
         />
       )}
     </div>
@@ -321,9 +373,14 @@ interface LandingInterfaceProps {
   onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
   placeholder: string;
   onSuggestionClick: (text: string) => void;
+  isTyping?: boolean;
+  onStop?: () => void;
+  onAttach?: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  selectedImage?: string | null;
+  onRemoveImage?: () => void;
 }
 
-function LandingInterface({ searchQuery, onSearchChange, onSubmit, onKeyDown, placeholder, onSuggestionClick }: LandingInterfaceProps) {
+function LandingInterface({ searchQuery, onSearchChange, onSubmit, onKeyDown, placeholder, onSuggestionClick, isTyping, onStop, onAttach, selectedImage, onRemoveImage }: LandingInterfaceProps) {
   return (
     <main className="relative z-10 flex h-full items-center justify-center px-4 sm:px-6">
       <div className="w-full max-w-3xl">
@@ -335,6 +392,11 @@ function LandingInterface({ searchQuery, onSearchChange, onSubmit, onKeyDown, pl
           onSubmit={onSubmit}
           onKeyDown={onKeyDown}
           placeholder={placeholder}
+          isTyping={isTyping}
+          onStop={onStop}
+          onAttach={onAttach}
+          selectedImage={selectedImage}
+          onRemoveImage={onRemoveImage}
         />
 
         <SuggestedQueries onSelect={onSuggestionClick} />
@@ -365,7 +427,16 @@ function ChatInterface({
   placeholderIndex,
   showPlaceholder,
   messagesEndRef,
-}: ChatInterfaceProps) {
+  onStop,
+  onAttach,
+  selectedImage,
+  onRemoveImage,
+}: ChatInterfaceProps & {
+  onStop: () => void;
+  onAttach: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  selectedImage: string | null;
+  onRemoveImage: () => void;
+}) {
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
   const [isFocused, setIsFocused] = useState(false);
@@ -412,7 +483,14 @@ function ChatInterface({
       >
         <div className="max-w-3xl w-full mx-auto">
           {messages.map((message, idx) => (
-            <ResearchCardMessage key={message.id} message={message} isFirst={idx === 0} />
+            <ResearchCardMessage
+              key={message.id}
+              message={message}
+              isFirst={idx === 0}
+              onEditUserMessage={(content) => {
+                onSearchChange({ target: { value: content } } as any);
+              }}
+            />
           ))}
           {isTyping && <MinimalTyping />}
           <div ref={messagesEndRef} />
@@ -429,6 +507,19 @@ function ChatInterface({
             boxShadow: isFocused ? "0 0 0 3px var(--accent-glow), var(--shadow-medium)" : "var(--shadow-medium)",
           }}
         >
+          {selectedImage && (
+            <div className="px-5 pt-4 pb-2 relative">
+              <div className="relative inline-block group">
+                <img src={selectedImage} alt="Attached" className="h-16 w-16 object-cover rounded-xl border" style={{ borderColor: "var(--border-color)" }} />
+                <button 
+                  onClick={onRemoveImage}
+                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+          )}
           <textarea
             ref={textareaRef}
             value={searchQuery}
@@ -443,7 +534,7 @@ function ChatInterface({
               lineHeight: "1.5",
               minHeight: "56px",
               maxHeight: "200px",
-              paddingTop: "16px",
+              paddingTop: selectedImage ? "8px" : "16px",
               paddingBottom: "42px",
               outline: "none",
               transition: "color 150ms ease",
@@ -451,27 +542,36 @@ function ChatInterface({
             rows={1}
           />
           <div className="absolute left-3 bottom-3 flex gap-2">
-            <button
-              className="rounded-lg p-2 transition-colors"
+            <label
+              className="rounded-lg p-2 transition-colors cursor-pointer hover:bg-[var(--bg-tertiary)]"
               style={{
-                backgroundColor: "var(--bg-tertiary)",
                 color: "var(--text-secondary)",
               }}
             >
               <Paperclip className="h-4 w-4" />
-            </button>
+              <input type="file" accept="image/*" className="hidden" onChange={onAttach} />
+            </label>
           </div>
-          <button
-            onClick={onSubmit}
-            disabled={!searchQuery.trim()}
-            className="absolute right-3 bottom-3 rounded-lg p-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            style={{
-              backgroundColor: searchQuery.trim() ? "var(--accent-color)" : "var(--bg-tertiary)",
-              color: searchQuery.trim() ? "#ffffff" : "var(--text-secondary)",
-            }}
-          >
-            <ArrowRight className="h-4 w-4" />
-          </button>
+          {isTyping ? (
+            <button
+              onClick={onStop}
+              className="absolute right-3 bottom-3 rounded-lg p-2 transition-colors bg-red-500 hover:bg-red-600 text-white"
+            >
+              <Square className="h-4 w-4 fill-current" />
+            </button>
+          ) : (
+            <button
+              onClick={onSubmit}
+              disabled={!searchQuery.trim() && !selectedImage}
+              className="absolute right-3 bottom-3 rounded-lg p-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{
+                backgroundColor: (searchQuery.trim() || selectedImage) ? "var(--accent-color)" : "var(--bg-tertiary)",
+                color: (searchQuery.trim() || selectedImage) ? "#ffffff" : "var(--text-secondary)",
+              }}
+            >
+              <ArrowRight className="h-4 w-4" />
+            </button>
+          )}
         </div>
       </div>
       </div>
@@ -565,15 +665,38 @@ interface ResearchCardMessageProps {
   isFirst: boolean;
 }
 
-function ResearchCardMessage({ message, isFirst }: ResearchCardMessageProps) {
+function ResearchCardMessage({ message, isFirst, onEditUserMessage }: ResearchCardMessageProps & { onEditUserMessage?: (content: string) => void }) {
   const isUser = message.role === "user";
+  const [copied, setCopied] = useState(false);
+  const [userCopied, setUserCopied] = useState(false);
 
+  const handleCopyAssistant = () => {
+    navigator.clipboard.writeText(message.content);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleDownload = () => {
+    const blob = new Blob([message.content], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `gemma-response-${Date.now()}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleCopyUser = () => {
+    navigator.clipboard.writeText(message.content);
+    setUserCopied(true);
+    setTimeout(() => setUserCopied(false), 2000);
+  };
 
   return (
     <div className={`mb-8 ${isFirst ? "mt-4 sm:mt-0" : "mt-12"} animate-fade-in`}>
       {isUser ? (
         <div className="flex justify-end mb-8">
-          <div className="max-w-lg">
+          <div className="max-w-lg group">
             <div
               className="rounded-xl px-5 py-3.5 border"
               style={{
@@ -582,7 +705,35 @@ function ResearchCardMessage({ message, isFirst }: ResearchCardMessageProps) {
                 color: "var(--text-primary)",
               }}
             >
-              <p className="text-[0.95rem] leading-relaxed">{message.content}</p>
+              {message.image && (
+                <div className="mb-4">
+                  <img src={message.image} alt="User attached" className="max-w-xs h-auto rounded-xl border" style={{ borderColor: "var(--border-color)" }} />
+                </div>
+              )}
+              <p className="text-[0.95rem] leading-relaxed whitespace-pre-wrap">{message.content}</p>
+            </div>
+            {/* User action buttons */}
+            <div className="flex justify-end gap-1.5 mt-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+              <button
+                onClick={handleCopyUser}
+                className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs transition-colors"
+                style={{ color: "var(--text-tertiary)", backgroundColor: "var(--bg-secondary)" }}
+                title="Copy"
+              >
+                {userCopied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                <span>{userCopied ? "Copied" : "Copy"}</span>
+              </button>
+              {onEditUserMessage && (
+                <button
+                  onClick={() => onEditUserMessage(message.content)}
+                  className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs transition-colors"
+                  style={{ color: "var(--text-tertiary)", backgroundColor: "var(--bg-secondary)" }}
+                  title="Edit"
+                >
+                  <Pencil className="w-3 h-3" />
+                  <span>Edit</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -636,6 +787,36 @@ function ResearchCardMessage({ message, isFirst }: ResearchCardMessageProps) {
               </div>
             )}
           </article>
+
+          {/* Assistant action buttons */}
+          {message.content && (
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={handleCopyAssistant}
+                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs border transition-all duration-150 hover:scale-[1.02]"
+                style={{
+                  backgroundColor: "var(--bg-secondary)",
+                  borderColor: "var(--border-color)",
+                  color: "var(--text-tertiary)",
+                }}
+              >
+                {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{copied ? "Copied!" : "Copy"}</span>
+              </button>
+              <button
+                onClick={handleDownload}
+                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs border transition-all duration-150 hover:scale-[1.02]"
+                style={{
+                  backgroundColor: "var(--bg-secondary)",
+                  borderColor: "var(--border-color)",
+                  color: "var(--text-tertiary)",
+                }}
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Download .md</span>
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -648,12 +829,22 @@ function SearchBox({
   onSubmit,
   onKeyDown,
   placeholder,
+  isTyping,
+  onStop,
+  onAttach,
+  selectedImage,
+  onRemoveImage,
 }: {
   value: string;
   onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
   onSubmit: () => void;
   onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
   placeholder: string;
+  isTyping?: boolean;
+  onStop?: () => void;
+  onAttach?: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  selectedImage?: string | null;
+  onRemoveImage?: () => void;
 }) {
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const [isFocused, setIsFocused] = useState(false);
@@ -678,6 +869,19 @@ function SearchBox({
           boxShadow: isFocused ? "0 0 0 3px var(--accent-glow)" : "var(--shadow-medium)",
         }}
       >
+        {selectedImage && (
+          <div className="px-5 pt-4 pb-2 relative">
+            <div className="relative inline-block group">
+              <img src={selectedImage} alt="Attached" className="h-16 w-16 object-cover rounded-xl border" style={{ borderColor: "var(--border-color)" }} />
+              <button 
+                onClick={onRemoveImage}
+                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          </div>
+        )}
         <textarea
           ref={textareaRef}
           value={value}
@@ -692,33 +896,44 @@ function SearchBox({
             lineHeight: "1.5",
             minHeight: "98px",
             maxHeight: "320px",
-            paddingTop: "18px",
+            paddingTop: selectedImage ? "8px" : "18px",
             paddingBottom: "42px",
             outline: "none",
             transition: "color 150ms ease",
           }}
           rows={1}
         />
-        <button
-          className="absolute left-3 bottom-3 rounded-lg p-2"
-          style={{
-            backgroundColor: "var(--bg-tertiary)",
-            color: "var(--text-secondary)",
-          }}
-        >
-          <Paperclip className="h-4 w-4" />
-        </button>
-        <button
-          onClick={onSubmit}
-          disabled={!value.trim()}
-          className="absolute right-3 bottom-3 rounded-lg p-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          style={{
-            backgroundColor: value.trim() ? "var(--accent-color)" : "var(--bg-tertiary)",
-            color: value.trim() ? "#ffffff" : "var(--text-secondary)",
-          }}
-        >
-          <ArrowRight className="h-4 w-4" />
-        </button>
+        <div className="absolute left-3 bottom-3 flex gap-2">
+          <label
+            className="rounded-lg p-2 transition-colors cursor-pointer hover:bg-[var(--bg-tertiary)]"
+            style={{
+              color: "var(--text-secondary)",
+            }}
+          >
+            <Paperclip className="h-4 w-4" />
+            <input type="file" accept="image/*" className="hidden" onChange={onAttach} />
+          </label>
+        </div>
+        {isTyping ? (
+          <button
+            onClick={onStop}
+            className="absolute right-3 bottom-3 rounded-lg p-2 transition-colors bg-red-500 hover:bg-red-600 text-white"
+          >
+            <Square className="h-4 w-4 fill-current" />
+          </button>
+        ) : (
+          <button
+            onClick={onSubmit}
+            disabled={!value.trim() && !selectedImage}
+            className="absolute right-3 bottom-3 rounded-lg p-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{
+              backgroundColor: (value.trim() || selectedImage) ? "var(--accent-color)" : "var(--bg-tertiary)",
+              color: (value.trim() || selectedImage) ? "#ffffff" : "var(--text-secondary)",
+            }}
+          >
+            <ArrowRight className="h-4 w-4" />
+          </button>
+        )}
       </div>
     </div>
   );
@@ -726,10 +941,10 @@ function SearchBox({
 
 function SuggestedQueries({ onSelect }: { onSelect: (t: string) => void }) {
   const suggestions = [
-    { icon: "📰", text: "What are the latest developments in AI?" },
-    { icon: "📉", text: "How did the stock market perform today?" },
-    { icon: "🌤️", text: "What's the weather forecast for New York this week?" },
-    { icon: "🏀", text: "Who won the NBA finals last night?" },
+    { icon: "📰", text: "Latest news" },
+    { icon: "📉", text: "Stock market" },
+    { icon: "🌤️", text: "Weather forecast" },
+    { icon: "🏀", text: "Sports scores" },
   ];
 
   return (
