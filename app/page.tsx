@@ -55,6 +55,8 @@ interface Message {
   image?: string;
   /** Total cost of all LLM calls for this response, in USD */
   cost?: number;
+  /** Thinking/reasoning process for specific models */
+  reasoning?: string;
 }
 
 export default function HomePage() {
@@ -265,17 +267,29 @@ export default function HomePage() {
               continue;
             }
 
-            // Writer token
-            const token: string = parsed.choices?.[0]?.delta?.content ?? "";
-            if (!token) continue;
+            // Writer tokens (content or reasoning)
+            const delta = parsed.choices?.[0]?.delta;
+            const token: string = delta?.content ?? "";
+            const reasoning: string = delta?.reasoning ?? delta?.thought ?? "";
+
+            if (!token && !reasoning) continue;
 
             if (!initialized) {
-              initAI({ content: token, status: undefined });
+              initAI({ 
+                content: token, 
+                reasoning: reasoning,
+                status: undefined 
+              });
             } else {
               setMessages((prev) =>
                 prev.map((m) =>
                   m.id === aiId
-                    ? { ...m, content: m.content + token, status: undefined }
+                    ? { 
+                        ...m, 
+                        content: m.content + token, 
+                        reasoning: (m.reasoning || "") + reasoning,
+                        status: undefined 
+                      }
                     : m
                 )
               );
@@ -828,6 +842,11 @@ function ResearchCardMessage({ message, isFirst, onEditUserMessage }: ResearchCa
                 </div>
               )}
             </div>
+          )}
+
+          {/* Thinking process */}
+          {message.reasoning && (
+            <ThinkingLeaf content={message.reasoning} />
           )}
 
           {/* Content */}
@@ -1631,6 +1650,56 @@ function MarkdownContent({ content }: { content: string }) {
   flushList("final");
   flushTable("final-t");
   return <>{nodes}</>;
+}
+
+function ThinkingLeaf({ content }: { content: string }) {
+  const [collapsed, setCollapsed] = useState(true);
+  
+  if (!content) return null;
+
+  return (
+    <div className="mb-6 animate-fade-in">
+      <button
+        onClick={() => setCollapsed(!collapsed)}
+        className="flex items-center gap-2 rounded-lg px-3 py-2 text-[11px] font-medium transition-all duration-200 hover:bg-[var(--bg-tertiary)]"
+        style={{
+          backgroundColor: "var(--bg-secondary)",
+          color: "var(--text-tertiary)",
+          border: "1px solid var(--border-color)",
+        }}
+      >
+        <div className="flex items-center gap-2">
+          <div className="flex gap-0.5">
+            {[0, 150, 300].map((delay) => (
+              <span
+                key={delay}
+                className="w-1 h-1 rounded-full opacity-60"
+                style={{ backgroundColor: "var(--accent-color)", animation: "pulse 2s infinite", animationDelay: `${delay}ms` }}
+              />
+            ))}
+          </div>
+          <span className="italic uppercase tracking-wider">Thought Process</span>
+        </div>
+        <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${collapsed ? '' : 'rotate-180'}`} />
+      </button>
+      
+      {!collapsed && (
+        <div 
+          className="mt-3 p-4 rounded-xl text-[0.9rem] leading-relaxed italic border-l-2"
+          style={{ 
+            backgroundColor: "var(--bg-tertiary)", 
+            color: "var(--text-secondary)",
+            borderColor: "var(--accent-color)",
+            fontFamily: "var(--font-body)"
+          }}
+        >
+          <div className="opacity-80 whitespace-pre-wrap">
+            {content}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ─── Cost Badge ───────────────────────────────────────────────────────────────
