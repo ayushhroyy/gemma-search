@@ -1,7 +1,31 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { Menu, X, Plus, Sun, Moon, ArrowRight, Paperclip } from "lucide-react";
+import { Menu, X, Plus, Sun, Moon, ArrowRight, Paperclip, ChevronDown, Cpu } from "lucide-react";
+
+// ─── Gemma Models ─────────────────────────────────────────────────────────────
+const GEMMA_MODELS = [
+  { id: "google/gemma-4-31b-it",   label: "Gemma 4 31B" },
+  { id: "google/gemma-4-26b-a4b-it", label: "Gemma 4 26B" },
+  { id: "google/gemma-3-27b-it",   label: "Gemma 3 27B" },
+  { id: "google/gemma-3-12b-it",   label: "Gemma 3 12B" },
+  { id: "google/gemma-3-4b-it",    label: "Gemma 3 4B" },
+  { id: "google/gemma-3n-e4b-it",  label: "Gemma 3n E4B" },
+] as const;
+
+type GemmaModelId = typeof GEMMA_MODELS[number]["id"];
+
+interface ModelConfig {
+  router:   GemmaModelId;
+  selector: GemmaModelId;
+  writer:   GemmaModelId;
+}
+
+const DEFAULT_MODELS: ModelConfig = {
+  router:   "google/gemma-4-31b-it",
+  selector: "google/gemma-4-26b-a4b-it",
+  writer:   "google/gemma-4-31b-it",
+};
 
 interface Source {
   title: string;
@@ -33,6 +57,7 @@ export default function HomePage() {
   const [isChatMode, setIsChatMode] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
+  const [modelConfig, setModelConfig] = useState<ModelConfig>(DEFAULT_MODELS);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const placeholders = [
@@ -150,7 +175,7 @@ export default function HomePage() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query }),
+        body: JSON.stringify({ query, models: modelConfig }),
       });
 
       if (!res.ok || !res.body) throw new Error("Request failed");
@@ -250,6 +275,8 @@ export default function HomePage() {
         mounted={mounted}
         isChatMode={isChatMode}
         onNewChat={startNewChat}
+        modelConfig={modelConfig}
+        onModelChange={setModelConfig}
       />
 
       {isChatMode ? (
@@ -520,110 +547,6 @@ interface ResearchCardMessageProps {
 function ResearchCardMessage({ message, isFirst }: ResearchCardMessageProps) {
   const isUser = message.role === "user";
 
-  // Parse markdown-style content for better rendering
-  const renderContent = (content: string) => {
-    const lines = content.split('\n');
-    const elements: React.ReactNode[] = [];
-    let currentList: string[] = [];
-    let inList = false;
-
-    lines.forEach((line, idx) => {
-      // Handle headers
-      if (line.startsWith('**') && line.endsWith('**')) {
-        if (inList) {
-          elements.push(
-            <ul key={`list-${idx}`} className="mb-6 space-y-2">
-              {currentList.map((item, i) => (
-                <li key={i} className="pl-4" style={{ color: "var(--text-secondary)" }}>
-                  <span style={{ color: "var(--accent-color)" }}>•</span>{" "}{item}
-                </li>
-              ))}
-            </ul>
-          );
-          currentList = [];
-          inList = false;
-        }
-        const headerText = line.slice(2, -2);
-        elements.push(
-          <h3 key={idx} className="text-lg font-semibold mt-8 mb-4 first:mt-0" style={{ color: "var(--text-primary)" }}>
-            {headerText}
-          </h3>
-        );
-      }
-      // Handle numbered lists
-      else if (line.match(/^\d+\.\s+\*\*/)) {
-        const match = line.match(/^\d+\.\s+\*\*(.+?\*\*):\s*(.+)/);
-        if (match) {
-          if (inList) {
-            elements.push(
-              <ul key={`list-${idx}`} className="mb-6 space-y-2">
-                {currentList.map((item, i) => (
-                  <li key={i} className="pl-4" style={{ color: "var(--text-secondary)" }}>
-                    <span style={{ color: "var(--accent-color)" }}>•</span>{" "}{item}
-                  </li>
-                ))}
-              </ul>
-            );
-            currentList = [];
-            inList = false;
-          }
-          elements.push(
-            <div key={idx} className="mb-5">
-              <h4 className="text-base font-semibold mb-2" style={{ color: "var(--text-primary)" }}>
-                {match[1]}
-              </h4>
-              <p className="leading-relaxed" style={{ color: "var(--text-secondary)", fontSize: "0.965rem" }}>
-                {match[2]}
-              </p>
-            </div>
-          );
-        }
-      }
-      // Handle bullet points (with *)
-      else if (line.trim().startsWith('*')) {
-        const bulletText = line.replace(/^\*\s*/, '').replace(/\*\*/g, '');
-        currentList.push(bulletText);
-        inList = true;
-      }
-      // Handle regular paragraphs
-      else if (line.trim()) {
-        if (inList) {
-          elements.push(
-            <ul key={`list-${idx}`} className="mb-6 space-y-2">
-              {currentList.map((item, i) => (
-                <li key={i} className="pl-4" style={{ color: "var(--text-secondary)" }}>
-                  <span style={{ color: "var(--accent-color)" }}>•</span>{" "}{item}
-                </li>
-              ))}
-            </ul>
-          );
-          currentList = [];
-          inList = false;
-        }
-        const cleanLine = line.replace(/\*\*/g, '').replace(/\*/g, '');
-        elements.push(
-          <p key={idx} className="mb-4 leading-relaxed" style={{ color: "var(--text-secondary)", fontSize: "0.965rem" }}>
-            {cleanLine}
-          </p>
-        );
-      }
-    });
-
-    // Flush remaining list
-    if (inList && currentList.length > 0) {
-      elements.push(
-        <ul key="final-list" className="mb-6 space-y-2">
-          {currentList.map((item, i) => (
-            <li key={i} className="pl-4" style={{ color: "var(--text-secondary)" }}>
-              <span style={{ color: "var(--accent-color)" }}>•</span>{" "}{item}
-            </li>
-          ))}
-        </ul>
-      );
-    }
-
-    return elements;
-  };
 
   return (
     <div className={`mb-8 ${isFirst ? "" : "mt-12"} animate-fade-in`}>
@@ -675,7 +598,7 @@ function ResearchCardMessage({ message, isFirst }: ResearchCardMessageProps) {
 
           {/* Content */}
           <article className="prose-readable" style={{ fontFamily: "var(--font-body)" }}>
-            {message.content ? renderContent(message.content) : (
+            {message.content ? <MarkdownContent content={message.content} /> : (
               <div className="flex items-center gap-2.5 py-2">
                 <div className="flex gap-1">
                   {[0, 150, 300].map((delay) => (
@@ -825,6 +748,8 @@ interface HeaderProps {
   mounted: boolean;
   isChatMode?: boolean;
   onNewChat?: () => void;
+  modelConfig: ModelConfig;
+  onModelChange: (c: ModelConfig) => void;
 }
 
 function Header({
@@ -835,6 +760,8 @@ function Header({
   mounted,
   isChatMode = false,
   onNewChat,
+  modelConfig,
+  onModelChange,
 }: HeaderProps) {
   return (
     <header className="fixed top-0 left-0 right-0 z-20 px-6 py-4">
@@ -876,6 +803,7 @@ function Header({
         </div>
 
         <div className="flex items-center gap-3">
+          <ModelPicker config={modelConfig} onChange={onModelChange} />
           <button
             onClick={onToggleTheme}
             className="rounded-xl p-2.5 text-[var(--text-primary)] transition-all duration-200 hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)] active:scale-95"
@@ -1019,5 +947,201 @@ function Sidebar({
         </div>
       </aside>
     </>
+  );
+}
+
+// ─── Markdown Renderer ────────────────────────────────────────────────────────
+
+function renderInline(text: string): React.ReactNode {
+  // Split on bold, italic, inline-code, and links
+  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*\n]+\*|`[^`]+`|\[[^\]]+\]\([^)]+\))/g);
+  return parts.map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**"))
+      return <strong key={i} style={{ color: "var(--text-primary)", fontWeight: 600 }}>{part.slice(2, -2)}</strong>;
+    if (part.startsWith("*") && part.endsWith("*") && part.length > 2)
+      return <em key={i}>{part.slice(1, -1)}</em>;
+    if (part.startsWith("`") && part.endsWith("`"))
+      return (
+        <code key={i} className="rounded px-1.5 py-0.5 text-[0.875em] font-mono"
+          style={{ backgroundColor: "var(--bg-tertiary)", color: "var(--accent-color)" }}>
+          {part.slice(1, -1)}
+        </code>
+      );
+    const link = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+    if (link)
+      return <a key={i} href={link[2]} target="_blank" rel="noopener noreferrer"
+        style={{ color: "var(--accent-color)", textDecoration: "underline" }}>{link[1]}</a>;
+    return part;
+  });
+}
+
+function MarkdownContent({ content }: { content: string }) {
+  const lines  = content.split("\n");
+  const nodes: React.ReactNode[] = [];
+  let listItems: { text: string; ordered: boolean }[] = [];
+  let isOrdered = false;
+  let codeLines: string[]  = [];
+  let inCode    = false;
+
+  const flushList = (key: string) => {
+    if (!listItems.length) return;
+    const items = listItems.map((li, j) => (
+      <li key={j} className="leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+        {renderInline(li.text)}
+      </li>
+    ));
+    nodes.push(
+      isOrdered
+        ? <ol key={key} className="mb-4 pl-6 space-y-1.5 list-decimal">{items}</ol>
+        : <ul key={key} className="mb-4 pl-5 space-y-1.5 list-disc">{items}</ul>
+    );
+    listItems = [];
+  };
+
+  lines.forEach((line, idx) => {
+    const key = String(idx);
+
+    // Code fence
+    if (line.startsWith("```")) {
+      if (!inCode) { inCode = true; codeLines = []; }
+      else {
+        inCode = false;
+        flushList(key + "l");
+        nodes.push(
+          <pre key={key} className="mb-4 rounded-xl p-4 overflow-x-auto text-sm font-mono"
+            style={{ backgroundColor: "var(--bg-tertiary)", color: "var(--text-primary)" }}>
+            <code>{codeLines.join("\n")}</code>
+          </pre>
+        );
+      }
+      return;
+    }
+    if (inCode) { codeLines.push(line); return; }
+
+    // Headings (### before ## before #)
+    const h3 = line.match(/^###\s+(.+)/);
+    const h2 = line.match(/^##\s+(.+)/);
+    const h1 = line.match(/^#\s+(.+)/);
+    // Also treat **Entire line** as an h3-style header
+    const boldHeader = !h1 && !h2 && !h3 && line.match(/^\*\*([^*]+)\*\*\s*$/);
+
+    if (h3) { flushList(key + "l"); nodes.push(<h3 key={key} className="text-base font-semibold mt-6 mb-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-ui)" }}>{renderInline(h3[1])}</h3>); return; }
+    if (h2) { flushList(key + "l"); nodes.push(<h2 key={key} className="text-lg font-semibold mt-7 mb-3" style={{ color: "var(--text-primary)", fontFamily: "var(--font-ui)" }}>{renderInline(h2[1])}</h2>); return; }
+    if (h1) { flushList(key + "l"); nodes.push(<h1 key={key} className="text-xl font-semibold mt-8 mb-4" style={{ color: "var(--text-primary)", fontFamily: "var(--font-ui)" }}>{renderInline(h1[1])}</h1>); return; }
+    if (boldHeader) { flushList(key + "l"); nodes.push(<h3 key={key} className="text-base font-semibold mt-6 mb-2" style={{ color: "var(--text-primary)", fontFamily: "var(--font-ui)" }}>{boldHeader[1]}</h3>); return; }
+
+    // Ordered list
+    const ol = line.match(/^(\d+)\.\s+(.+)/);
+    if (ol) {
+      if (listItems.length && !isOrdered) flushList(key + "l");
+      isOrdered = true;
+      listItems.push({ text: ol[2], ordered: true });
+      return;
+    }
+
+    // Unordered list
+    const ul = line.match(/^[-*+]\s+(.+)/);
+    if (ul) {
+      if (listItems.length && isOrdered) flushList(key + "l");
+      isOrdered = false;
+      listItems.push({ text: ul[1], ordered: false });
+      return;
+    }
+
+    // Empty line → flush list
+    if (!line.trim()) { flushList(key + "l"); return; }
+
+    // Paragraph
+    flushList(key + "l");
+    nodes.push(
+      <p key={key} className="mb-3 leading-relaxed" style={{ color: "var(--text-secondary)", fontSize: "0.965rem" }}>
+        {renderInline(line)}
+      </p>
+    );
+  });
+
+  flushList("final");
+  return <>{nodes}</>;
+}
+
+// ─── Model Picker ─────────────────────────────────────────────────────────────
+
+const AGENT_LABELS: Record<keyof ModelConfig, string> = {
+  router:   "Router",
+  selector: "Selector",
+  writer:   "Writer",
+};
+
+function ModelPicker({ config, onChange }: { config: ModelConfig; onChange: (c: ModelConfig) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-medium transition-all duration-200 active:scale-95"
+        style={{
+          backgroundColor: open ? "var(--bg-tertiary)" : "var(--bg-secondary)",
+          color: "var(--text-secondary)",
+          boxShadow: "var(--shadow-subtle)",
+        }}
+        aria-label="Select agent models"
+      >
+        <Cpu className="h-3.5 w-3.5" style={{ color: "var(--accent-color)" }} />
+        <span>Models</span>
+        <ChevronDown className={`h-3 w-3 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      {open && (
+        <div
+          className="absolute right-0 top-full mt-2 w-72 rounded-2xl border p-4 z-50 animate-fade-in"
+          style={{
+            backgroundColor: "var(--bg-secondary)",
+            borderColor: "var(--border-color)",
+            boxShadow: "var(--shadow-elevated)",
+          }}
+        >
+          <p className="text-[11px] font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--text-tertiary)" }}>
+            Agent Models
+          </p>
+          <div className="space-y-3">
+            {(Object.keys(AGENT_LABELS) as (keyof ModelConfig)[]).map((agent) => (
+              <div key={agent} className="flex items-center justify-between gap-3">
+                <span className="text-xs font-medium w-16 flex-shrink-0" style={{ color: "var(--text-secondary)" }}>
+                  {AGENT_LABELS[agent]}
+                </span>
+                <select
+                  value={config[agent]}
+                  onChange={(e) => onChange({ ...config, [agent]: e.target.value as GemmaModelId })}
+                  className="flex-1 rounded-lg px-2.5 py-1.5 text-xs border appearance-none cursor-pointer outline-none"
+                  style={{
+                    backgroundColor: "var(--bg-tertiary)",
+                    borderColor: "var(--border-color)",
+                    color: "var(--text-primary)",
+                  }}
+                >
+                  {GEMMA_MODELS.map((m) => (
+                    <option key={m.id} value={m.id}>{m.label}</option>
+                  ))}
+                </select>
+              </div>
+            ))}
+          </div>
+          <p className="text-[10px] mt-3 leading-snug" style={{ color: "var(--text-tertiary)" }}>
+            All models via OpenRouter · Changes apply to next query
+          </p>
+        </div>
+      )}
+    </div>
   );
 }
