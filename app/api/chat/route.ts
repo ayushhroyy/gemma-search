@@ -92,6 +92,7 @@ async function llmStream(
       // Ask OpenRouter to include usage in the stream finale
       stream_options: { include_usage: true },
       include_reasoning: includeReasoning,
+      reasoning_effort: "none",
     }),
   });
   if (!res.ok) {
