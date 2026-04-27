@@ -1195,24 +1195,29 @@ function Sidebar({
 
 // ─── Markdown Renderer ────────────────────────────────────────────────────────
 
-// Initialize mermaid once
-mermaid.initialize({
-  startOnLoad: false,
-  theme: "base",
-  themeVariables: {
-    primaryColor: "var(--accent-color)",
-    primaryTextColor: "var(--text-primary)",
-    primaryBorderColor: "var(--border-color)",
-    lineColor: "var(--border-color)",
-    secondaryColor: "var(--bg-tertiary)",
-    tertiaryColor: "var(--bg-secondary)",
-    background: "var(--bg-secondary)",
-    mainBkg: "var(--bg-tertiary)",
-    nodeBorder: "var(--border-color)",
-    fontSize: "14px",
-  },
-  securityLevel: "loose",
-});
+let mermaidInitialized = false;
+
+function initializeMermaid() {
+  if (mermaidInitialized) return;
+  mermaidInitialized = true;
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: "base",
+    themeVariables: {
+      primaryColor: "#6366f1",
+      primaryTextColor: "#f8fafc",
+      primaryBorderColor: "#475569",
+      lineColor: "#475569",
+      secondaryColor: "#334155",
+      tertiaryColor: "#1e293b",
+      background: "#0f172a",
+      mainBkg: "#334155",
+      nodeBorder: "#475569",
+      fontSize: "14px",
+    },
+    securityLevel: "loose",
+  });
+}
 
 function MermaidChart({ code, id }: { code: string; id: string }) {
   const [svg, setSvg] = useState<string | null>(null);
@@ -1220,13 +1225,17 @@ function MermaidChart({ code, id }: { code: string; id: string }) {
 
   useEffect(() => {
     let cancelled = false;
-    mermaid.render(id, code)
-      .then(({ svg }) => {
-        if (!cancelled) setSvg(svg);
-      })
-      .catch((err) => {
-        if (!cancelled) setError("Chart unavailable");
-      });
+    // Lazy initialize mermaid only in browser
+    if (typeof window !== "undefined") {
+      initializeMermaid();
+      mermaid.render(id, code)
+        .then(({ svg }) => {
+          if (!cancelled) setSvg(svg);
+        })
+        .catch((err) => {
+          if (!cancelled) setError("Chart unavailable");
+        });
+    }
     return () => { cancelled = true; };
   }, [code, id]);
 
