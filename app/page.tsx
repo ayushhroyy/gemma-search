@@ -1432,6 +1432,15 @@ function MarkdownContent({ content }: { content: string }) {
     }
     if (inCode) { codeLines.push(line); return; }
 
+    // Horizontal rule (---, ***, ___)
+    const hr = line.match(/^\s*[-*_]{3,}\s*$/);
+    if (hr) {
+      flushList(key + "l");
+      flushTable(key + "t");
+      nodes.push(<hr key={key} className="my-4 border-t" style={{ borderColor: "var(--border-color)" }} />);
+      return;
+    }
+
     // Headings (match all 6 levels: # through ######)
     const h6 = line.match(/^######\s+(.+)/);
     const h5 = line.match(/^#####\s+(.+)/);
