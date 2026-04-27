@@ -969,7 +969,7 @@ function SuggestedQueries({ onSelect }: { onSelect: (t: string) => void }) {
             e.currentTarget.style.color = "var(--text-secondary)";
           }}
         >
-          <span className="text-base hidden sm:inline">{suggestion.icon}</span>
+          <span className="text-base">{suggestion.icon}</span>
           <span>{suggestion.text}</span>
         </button>
       ))}
