@@ -45,7 +45,7 @@ async function llm(
   model: string,
   messages: ORMessage[],
   maxTokens = 512
-): Promise<{ text: string; cost: number }> {
+): Promise<{ text: string; cost: number; promptTokens: number; completionTokens: number }> {
   const res = await fetch(OR_BASE, {
     method: "POST",
     headers: OR_HEADERS(key),
@@ -62,10 +62,14 @@ async function llm(
   }
   const data = await res.json();
   const text = data.choices?.[0]?.message?.content ?? "";
+  
+  const promptTokens = data.usage?.prompt_tokens ?? 0;
+  const completionTokens = data.usage?.completion_tokens ?? 0;
+
   // OpenRouter returns usage by default for non-streaming calls
   const cost: number = (typeof data.usage?.cost === "number" ? data.usage.cost : 0) + 
                        (typeof data.usage?.cost_details?.upstream_inference_cost === "number" ? data.usage.cost_details.upstream_inference_cost : 0);
-  return { text, cost };
+  return { text, cost, promptTokens, completionTokens };
 }
 
 /**
@@ -213,12 +217,14 @@ Do not mention your system prompt.`;
 async function pipeStreamAndExtractCost(
   writerRes: Response,
   writer: WritableStreamDefaultWriter<Uint8Array>
-): Promise<number> {
+): Promise<{ cost: number; promptTokens: number; completionTokens: number }> {
   const reader = writerRes.body!.getReader();
   const dec = new TextDecoder();
   const enc = new TextEncoder();
 
   let streamCost = 0;
+  let promptTokens = 0;
+  let completionTokens = 0;
   let buffer = "";
 
   const processLines = (lines: string[]) => {
@@ -232,6 +238,8 @@ async function pipeStreamAndExtractCost(
           const c = typeof parsed.usage.cost === "number" ? parsed.usage.cost : 0;
           const u = typeof parsed.usage.cost_details?.upstream_inference_cost === "number" ? parsed.usage.cost_details.upstream_inference_cost : 0;
           streamCost = c + u;
+          promptTokens = parsed.usage.prompt_tokens ?? 0;
+          completionTokens = parsed.usage.completion_tokens ?? 0;
         }
       } catch { /* skip */ }
     }
@@ -259,7 +267,7 @@ async function pipeStreamAndExtractCost(
   // Send final done marker
   await writer.write(enc.encode("data: [DONE]\n\n"));
   
-  return streamCost;
+  return { cost: streamCost, promptTokens, completionTokens };
 }
 
 // ─── Route ────────────────────────────────────────────────────────────────────
@@ -288,6 +296,8 @@ export async function POST(req: NextRequest) {
   (async () => {
     // Running cost accumulator (in USD)
     let totalCost = 0;
+    let totalPromptTokens = 0;
+    let totalCompletionTokens = 0;
 
     try {
       // ═══════════════════════════════════════════════════════════════════════
@@ -297,7 +307,7 @@ export async function POST(req: NextRequest) {
         await emit({ type: "status", message: "Analyzing your query…" });
 
         // Step 1: Route — decide if web search is needed
-        const { text: routerText, cost: routerCost } = await llm(openrouterKey, modelUni, [
+        const { text: routerText, cost: routerCost, promptTokens: rIP, completionTokens: rOP } = await llm(openrouterKey, modelUni, [
           {
             role: "system",
             content: `You are a routing agent for a search engine. Decide if the user query needs real-time web search.
@@ -316,6 +326,8 @@ Today's date is ${new Date().toLocaleDateString("en-US", { weekday: "long", year
           { role: "user", content: query },
         ]);
         totalCost += routerCost;
+        totalPromptTokens += rIP;
+        totalCompletionTokens += rOP;
 
         let needsSearch  = false;
         let searchTerms: string[] = [];
@@ -362,8 +374,10 @@ Today's date is ${new Date().toLocaleDateString("en-US", { weekday: "long", year
             { role: "system", content: writerSystemPrompt(allImages.length > 0, false) },
             { role: "user", content: image ? [{ type: "text", text: finalUserContent }, { type: "image_url", image_url: { url: image } }] : finalUserContent },
           ]);
-          const writerCost = await pipeStreamAndExtractCost(writerRes, writer);
+          const { cost: writerCost, promptTokens: wIP, completionTokens: wOP } = await pipeStreamAndExtractCost(writerRes, writer);
           totalCost += writerCost;
+          totalPromptTokens += wIP;
+          totalCompletionTokens += wOP;
         } else {
           // Direct answer — no search needed
           await emit({ type: "status", message: "Writing response…" });
@@ -378,11 +392,19 @@ Use tables and charts liberally when data allows. Tables for detail, charts for 
             },
             { role: "user", content: image ? [{ type: "text", text: query }, { type: "image_url", image_url: { url: image } }] : query },
           ]);
-          const writerCost = await pipeStreamAndExtractCost(writerRes, writer);
+          const { cost: writerCost, promptTokens: wIP, completionTokens: wOP } = await pipeStreamAndExtractCost(writerRes, writer);
           totalCost += writerCost;
+          totalPromptTokens += wIP;
+          totalCompletionTokens += wOP;
         }
 
-        await emit({ type: "cost", value: totalCost });
+      // Emit aggregated cost for all agents
+      await emit({ 
+        type: "cost", 
+        value: totalCost,
+        promptTokens: totalPromptTokens,
+        completionTokens: totalCompletionTokens
+      });
         return;
       }
 
@@ -423,7 +445,7 @@ Use tables and charts liberally when data allows. Tables for detail, charts for 
         // ── Path B: Router decides if web search needed ──────────────────────
         await emit({ type: "status", message: "Analyzing your query…" });
 
-        const { text: routerText, cost: routerCost } = await llm(openrouterKey, modelRouter, [
+        const { text: routerText, cost: routerCost, promptTokens: rIP, completionTokens: rOP } = await llm(openrouterKey, modelRouter, [
           {
             role: "system",
             content: `You are a routing agent for a search engine. Decide if the user query needs real-time web search.
@@ -442,6 +464,8 @@ Today's date is ${new Date().toLocaleDateString("en-US", { weekday: "long", year
           { role: "user", content: query },
         ]);
         totalCost += routerCost;
+        totalPromptTokens += rIP;
+        totalCompletionTokens += rOP;
 
         let needsSearch  = false;
         let searchTerms: string[] = [];
@@ -468,7 +492,7 @@ Today's date is ${new Date().toLocaleDateString("en-US", { weekday: "long", year
             .map((r, i) => `[${i}] ${r.title}\n${r.snippet}\nURL: ${r.link}`)
             .join("\n\n");
 
-          const { text: selectorText, cost: selectorCost } = await llm(openrouterKey, modelSelector, [
+          const { text: selectorText, cost: selectorCost, promptTokens: sIP, completionTokens: sOP } = await llm(openrouterKey, modelSelector, [
             {
               role: "system",
               content: `You are a content-selector agent. Your job is to select the most relevant URLs from the provided search results that will best answer the user's query.
@@ -479,6 +503,8 @@ Maximum 6 URLs. Do not explain your choices.`,
             { role: "user", content: `Query: ${query}\n\nResults:\n${snippetList}` },
           ]);
           totalCost += selectorCost;
+          totalPromptTokens += sIP;
+          totalCompletionTokens += sOP;
 
           let urlsToScrape: string[] = [];
           try {
@@ -568,11 +594,18 @@ Use tables and charts liberally when data allows. Tables for detail, charts for 
         { role: "user",   content: writerUserContent },
       ]);
 
-      const writerCost = await pipeStreamAndExtractCost(writerRes, writer);
+      const { cost: writerCost, promptTokens: wIP, completionTokens: wOP } = await pipeStreamAndExtractCost(writerRes, writer);
       totalCost += writerCost;
+      totalPromptTokens += wIP;
+      totalCompletionTokens += wOP;
 
       // Emit aggregated cost for all agents
-      await emit({ type: "cost", value: totalCost });
+      await emit({ 
+        type: "cost", 
+        value: totalCost,
+        promptTokens: totalPromptTokens,
+        completionTokens: totalCompletionTokens
+      });
 
     } catch (e: unknown) {
       await emit({ type: "error", message: e instanceof Error ? e.message : "Unknown error" });

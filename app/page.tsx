@@ -57,6 +57,8 @@ interface Message {
   cost?: number;
   /** Thinking/reasoning process for specific models */
   reasoning?: string;
+  promptTokens?: number;
+  completionTokens?: number;
 }
 
 export default function HomePage() {
@@ -263,7 +265,11 @@ export default function HomePage() {
 
             // Cost event — emitted after the stream ends
             if (parsed.type === "cost") {
-              patchAI({ cost: parsed.value as number });
+              patchAI({ 
+                cost: parsed.value as number,
+                promptTokens: parsed.promptTokens as number,
+                completionTokens: parsed.completionTokens as number
+              });
               continue;
             }
 
@@ -898,7 +904,11 @@ function ResearchCardMessage({ message, isFirst, onEditUserMessage }: ResearchCa
               </button>
               {/* Cost badge — shown once cost is received */}
               {typeof message.cost === "number" && (
-                <CostBadge cost={message.cost} />
+                <CostBadge 
+                  cost={message.cost} 
+                  promptTokens={message.promptTokens} 
+                  completionTokens={message.completionTokens} 
+                />
               )}
             </div>
           )}
@@ -1704,7 +1714,7 @@ function ThinkingLeaf({ content }: { content: string }) {
 
 // ─── Cost Badge ───────────────────────────────────────────────────────────────
 
-function CostBadge({ cost }: { cost: number }) {
+function CostBadge({ cost, promptTokens, completionTokens }: { cost: number; promptTokens?: number; completionTokens?: number }) {
   // Format: show at least 4 significant digits, e.g. $0.000123 or $0.0023
   const formatted = cost === 0
     ? "$0.0000"
@@ -1712,18 +1722,28 @@ function CostBadge({ cost }: { cost: number }) {
     ? `$${cost.toExponential(2)}`
     : `$${cost.toFixed(Math.max(4, 2 - Math.floor(Math.log10(cost))))}`;
 
+  const totalTokens = (promptTokens || 0) + (completionTokens || 0);
+
   return (
     <div
-      className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs border ml-auto"
+      className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-xs border ml-auto"
       style={{
         backgroundColor: "var(--bg-secondary)",
         borderColor: "var(--border-color)",
         color: "var(--text-tertiary)",
       }}
-      title="Total cost of all LLM calls for this response (via OpenRouter)"
+      title={`Cost: ${formatted}\nInput: ${promptTokens?.toLocaleString() || 0} tokens\nOutput: ${completionTokens?.toLocaleString() || 0} tokens`}
     >
-      <span style={{ color: "var(--accent-color)", fontWeight: 600 }}>⚡</span>
-      <span>{formatted}</span>
+      <div className="flex items-center gap-1.5">
+        <span style={{ color: "var(--accent-color)", fontWeight: 600 }}>⚡</span>
+        <span>{formatted}</span>
+      </div>
+      {totalTokens > 0 && (
+        <div className="flex items-center gap-1.5 pl-3 border-l" style={{ borderColor: "var(--border-color)" }}>
+          <Cpu className="w-3 h-3 opacity-60" style={{ color: "var(--accent-color)" }} />
+          <span>{totalTokens.toLocaleString()} tokens</span>
+        </div>
+      )}
     </div>
   );
 }
