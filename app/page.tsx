@@ -17,13 +17,13 @@ const GEMMA_MODELS = [
 type GemmaModelId = typeof GEMMA_MODELS[number]["id"];
 
 interface ModelConfig {
-  router:   GemmaModelId;
-  selector: GemmaModelId;
-  writer:   GemmaModelId;
+  router:   string;
+  selector: string;
+  writer:   string;
   /** Uni-model mode: one model handles routing + writing */
   uniMode:  boolean;
   /** The model used in uni mode */
-  uni:      GemmaModelId;
+  uni:      string;
 }
 
 const DEFAULT_MODELS: ModelConfig = {
@@ -1664,6 +1664,7 @@ const AGENT_LABELS: Record<"router" | "selector" | "writer", string> = {
 
 function ModelPicker({ config, onChange }: { config: ModelConfig; onChange: (c: ModelConfig) => void }) {
   const [open, setOpen] = useState(false);
+  const [showCustom, setShowCustom] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -1676,6 +1677,8 @@ function ModelPicker({ config, onChange }: { config: ModelConfig; onChange: (c: 
   }, [open]);
 
   const toggleUniMode = () => onChange({ ...config, uniMode: !config.uniMode });
+
+  const isCustom = (id: string) => !GEMMA_MODELS.some(m => m.id === id);
 
   return (
     <div ref={ref} className="relative">
@@ -1696,7 +1699,7 @@ function ModelPicker({ config, onChange }: { config: ModelConfig; onChange: (c: 
 
       {open && (
         <div
-          className="absolute right-0 top-full mt-2 w-72 rounded-2xl border p-4 z-50"
+          className="absolute right-0 top-full mt-2 w-80 rounded-2xl border p-4 z-50"
           style={{
             backgroundColor: "var(--bg-secondary)",
             borderColor: "var(--border-color)",
@@ -1732,29 +1735,56 @@ function ModelPicker({ config, onChange }: { config: ModelConfig; onChange: (c: 
             </button>
           </div>
 
+          <div className="mb-4">
+            <button 
+              onClick={() => setShowCustom(!showCustom)}
+              className="flex items-center gap-2 text-[10px] font-medium uppercase tracking-wider transition-colors hover:text-[var(--accent-color)]"
+              style={{ color: showCustom ? "var(--accent-color)" : "var(--text-tertiary)" }}
+            >
+              {showCustom ? <Check className="w-3 h-3" /> : <Pencil className="w-3 h-3" />}
+              <span>{showCustom ? "Done Editing Endpoints" : "Custom Endpoints"}</span>
+            </button>
+          </div>
+
           {config.uniMode ? (
             /* ── Uni model selector ─────────────────────────────────── */
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--text-tertiary)" }}>
                 Uni Model
               </p>
-              <select
-                value={config.uni}
-                onChange={(e) => onChange({ ...config, uni: e.target.value as GemmaModelId })}
-                className="w-full rounded-lg px-2.5 py-1.5 text-xs border appearance-none cursor-pointer outline-none"
-                style={{
-                  backgroundColor: "var(--bg-tertiary)",
-                  borderColor: "var(--border-color)",
-                  color: "var(--text-primary)",
-                }}
-              >
-                {GEMMA_MODELS.map((m) => (
-                  <option key={m.id} value={m.id}>{m.label}</option>
-                ))}
-              </select>
-              <p className="text-[10px] mt-3 leading-snug" style={{ color: "var(--text-tertiary)" }}>
-                Single model handles routing &amp; writing · 2 LLM calls max (search) or 1 (direct)
-              </p>
+              {showCustom ? (
+                <input 
+                  type="text"
+                  value={config.uni}
+                  onChange={(e) => onChange({ ...config, uni: e.target.value })}
+                  placeholder="provider/model-id"
+                  className="w-full rounded-lg px-2.5 py-1.5 text-xs border outline-none font-mono"
+                  style={{
+                    backgroundColor: "var(--bg-tertiary)",
+                    borderColor: "var(--border-color)",
+                    color: "var(--accent-color)",
+                  }}
+                />
+              ) : (
+                <select
+                  value={isCustom(config.uni) ? "custom" : config.uni}
+                  onChange={(e) => {
+                    if (e.target.value === "custom") setShowCustom(true);
+                    else onChange({ ...config, uni: e.target.value });
+                  }}
+                  className="w-full rounded-lg px-2.5 py-1.5 text-xs border appearance-none cursor-pointer outline-none"
+                  style={{
+                    backgroundColor: "var(--bg-tertiary)",
+                    borderColor: "var(--border-color)",
+                    color: "var(--text-primary)",
+                  }}
+                >
+                  {GEMMA_MODELS.map((m) => (
+                    <option key={m.id} value={m.id}>{m.label}</option>
+                  ))}
+                  <option value="custom">Custom...</option>
+                </select>
+              )}
             </div>
           ) : (
             /* ── 3-agent selectors ──────────────────────────────────── */
@@ -1764,32 +1794,53 @@ function ModelPicker({ config, onChange }: { config: ModelConfig; onChange: (c: 
               </p>
               <div className="space-y-3">
                 {(Object.keys(AGENT_LABELS) as ("router" | "selector" | "writer")[]).map((agent) => (
-                  <div key={agent} className="flex items-center justify-between gap-3">
-                    <span className="text-xs font-medium w-16 flex-shrink-0" style={{ color: "var(--text-secondary)" }}>
-                      {AGENT_LABELS[agent]}
-                    </span>
-                    <select
-                      value={config[agent]}
-                      onChange={(e) => onChange({ ...config, [agent]: e.target.value as GemmaModelId })}
-                      className="flex-1 rounded-lg px-2.5 py-1.5 text-xs border appearance-none cursor-pointer outline-none"
-                      style={{
-                        backgroundColor: "var(--bg-tertiary)",
-                        borderColor: "var(--border-color)",
-                        color: "var(--text-primary)",
-                      }}
-                    >
-                      {GEMMA_MODELS.map((m) => (
-                        <option key={m.id} value={m.id}>{m.label}</option>
-                      ))}
-                    </select>
+                  <div key={agent} className="flex flex-col gap-1.5">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-xs font-medium w-16 flex-shrink-0" style={{ color: "var(--text-secondary)" }}>
+                        {AGENT_LABELS[agent]}
+                      </span>
+                      {showCustom ? (
+                        <input 
+                          type="text"
+                          value={config[agent]}
+                          onChange={(e) => onChange({ ...config, [agent]: e.target.value })}
+                          placeholder="provider/model-id"
+                          className="flex-1 rounded-lg px-2.5 py-1.5 text-xs border outline-none font-mono"
+                          style={{
+                            backgroundColor: "var(--bg-tertiary)",
+                            borderColor: "var(--border-color)",
+                            color: "var(--accent-color)",
+                          }}
+                        />
+                      ) : (
+                        <select
+                          value={isCustom(config[agent]) ? "custom" : config[agent]}
+                          onChange={(e) => {
+                            if (e.target.value === "custom") setShowCustom(true);
+                            else onChange({ ...config, [agent]: e.target.value });
+                          }}
+                          className="flex-1 rounded-lg px-2.5 py-1.5 text-xs border appearance-none cursor-pointer outline-none"
+                          style={{
+                            backgroundColor: "var(--bg-tertiary)",
+                            borderColor: "var(--border-color)",
+                            color: "var(--text-primary)",
+                          }}
+                        >
+                          {GEMMA_MODELS.map((m) => (
+                            <option key={m.id} value={m.id}>{m.label}</option>
+                          ))}
+                          <option value="custom">Custom...</option>
+                        </select>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
-              <p className="text-[10px] mt-3 leading-snug" style={{ color: "var(--text-tertiary)" }}>
-                All models via OpenRouter · Changes apply to next query
-              </p>
             </div>
           )}
+          <p className="text-[10px] mt-4 leading-snug" style={{ color: "var(--text-tertiary)" }}>
+            {showCustom ? "Enter any OpenRouter model ID (e.g. anthropic/claude-3-opus)" : "All models via OpenRouter · Changes apply to next query"}
+          </p>
         </div>
       )}
     </div>
