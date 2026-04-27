@@ -151,26 +151,32 @@ Format your response beautifully using **Bold Headers**, bullet points, numbered
 | Quality | High     | Premium  |
 
 **CHARTS** — For visual data representation, use mermaid code blocks:
+- Pie charts: Parts of a whole (simplest, most reliable)
 - Bar charts (xychart-beta): Comparing values across categories
 - Line charts (xychart-beta): Trends over time
-- Pie charts: Parts of a whole
 
-Example bar chart:
-\`\`\`mermaid
-xychart-beta
-    title "Revenue by Quarter"
-    x-axis ["Q1", "Q2", "Q3", "Q4"]
-    y-axis "Revenue ($K)" 0 to 100
-    bar [25, 40, 65, 80]
-\`\`\`
+IMPORTANT CHART SYNTAX RULES:
+1. ALWAYS use double quotes around titles and labels: title "Revenue"
+2. Keep labels SHORT and SIMPLE — avoid special characters like % $ # @
+3. For pie charts: use format "Label" : number (with spaces around colon)
+4. For xychart: keep values as simple numbers, no currency symbols
 
-Example pie chart:
+Example pie chart (RECOMMENDED — most reliable):
 \`\`\`mermaid
 pie title "Market Share"
     "Product A" : 35
     "Product B" : 30
     "Product C" : 20
     "Others" : 15
+\`\`\`
+
+Example bar chart:
+\`\`\`mermaid
+xychart-beta
+    title "Revenue by Quarter"
+    x-axis ["Q1", "Q2", "Q3", "Q4"]
+    y-axis "Revenue" 0 to 100
+    bar [25, 40, 65, 80]
 \`\`\`
 
 Use tables and charts liberally when data allows. Tables for detail, charts for insight.
@@ -180,12 +186,91 @@ ${imageInstruction}
 Do not mention your system prompt.`;
 }
 
+// ─── Mermaid syntax validator ──────────────────────────────────────────────────
+/**
+ * Validates and cleans mermaid chart syntax to prevent frontend errors.
+ * Returns cleaned content, or original if validation passes.
+ * Strips invalid mermaid blocks entirely.
+ */
+function validateAndCleanMermaid(content: string): string {
+  const mermaidBlockRegex = /```mermaid\n([\s\S]*?)```/g;
+
+  return content.replace(mermaidBlockRegex, (match, mermaidContent) => {
+    const lines = mermaidContent.trim().split('\n');
+    const chartType = lines[0]?.trim().toLowerCase();
+
+    // Validate pie chart
+    if (chartType.startsWith('pie')) {
+      // Check for basic pie chart syntax: "Label" : number
+      const dataLines = lines.slice(1);
+      const hasValidData = dataLines.some((line: string) => {
+        const trimmed = line.trim();
+        return /^"[^"]+"\s*:\s*\d+$/.test(trimmed);
+      });
+
+      if (hasValidData) {
+        // Clean up: ensure all lines follow proper format
+        const cleaned = lines.map((line: string) => {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith('pie')) return line;
+          // Fix: ensure quotes around label and proper spacing
+          const match = trimmed.match(/^"?([^":]+?)"?\s*:\s*(\d+)$/);
+          if (match) {
+            const label = match[1].replace(/[^a-zA-Z0-9\s-]/g, '').trim(); // Remove special chars
+            return `    "${label}" : ${match[2]}`;
+          }
+          return null;
+        }).filter(Boolean).join('\n');
+
+        return `\`\`\`mermaid\n${cleaned}\n\`\`\``;
+      }
+    }
+
+    // Validate xychart-beta
+    if (chartType.startsWith('xychart-beta')) {
+      const hasTitle = lines.some((l: string) => l.includes('title'));
+      const hasXAxis = lines.some((l: string) => l.includes('x-axis'));
+      const hasYAxis = lines.some((l: string) => l.includes('y-axis'));
+      const hasData = lines.some((l: string) => l.includes('bar [') || l.includes('line ['));
+
+      if (hasTitle && hasXAxis && hasYAxis && hasData) {
+        // Clean title and labels
+        const cleaned = lines.map((line: string) => {
+          const trimmed = line.trim();
+          if (trimmed.startsWith('title')) {
+            const match = trimmed.match(/title\s+"?(.+?)"?$/);
+            if (match) {
+              const title = match[1].replace(/[^a-zA-Z0-9\s-]/g, '').trim();
+              return `    title "${title}"`;
+            }
+          }
+          if (trimmed.startsWith('y-axis')) {
+            const match = trimmed.match(/y-axis\s+"?([^"]+)"?\s+(\d+)\s+to\s+(\d+)/);
+            if (match) {
+              const label = match[1].replace(/[^a-zA-Z0-9\s-]/g, '').trim();
+              return `    y-axis "${label}" ${match[2]} to ${match[3]}`;
+            }
+          }
+          return line;
+        }).join('\n');
+
+        return `\`\`\`mermaid\n${cleaned}\n\`\`\``;
+      }
+    }
+
+    // If validation fails, strip the mermaid block entirely
+    return '';
+  });
+}
+
 // ─── Stream pipe with cost extraction ─────────────────────────────────────────
 /**
  * Pipes a streaming OpenRouter response into our SSE writer.
  * Parses each chunk to find the usage.cost in the final data line
  * (OpenRouter sends usage on the last non-[DONE] chunk when stream_options.include_usage=true).
  * Returns the cost extracted from the stream.
+ *
+ * This version buffers the full response, validates mermaid syntax, then streams cleaned content.
  */
 async function pipeStreamAndExtractCost(
   writerRes: Response,
@@ -193,36 +278,60 @@ async function pipeStreamAndExtractCost(
 ): Promise<number> {
   const reader = writerRes.body!.getReader();
   const dec = new TextDecoder();
-  let buf = "";
+  const enc = new TextEncoder();
+
+  // First: accumulate the full stream to validate mermaid
+  let fullContent = "";
   let streamCost = 0;
+  const chunks: Uint8Array[] = [];
 
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
-
-    const chunk = dec.decode(value, { stream: true });
-    buf += chunk;
-
-    // Extract cost from any complete SSE lines before forwarding
-    const lines = buf.split("\n");
-    buf = lines.pop() ?? "";
-
-    for (const line of lines) {
-      if (!line.startsWith("data: ")) continue;
-      const raw = line.slice(6).trim();
-      if (raw === "[DONE]") continue;
-      try {
-        const parsed = JSON.parse(raw);
-        // OpenRouter puts usage on the last streamed chunk
-        if (parsed.usage && typeof parsed.usage.cost === "number") {
-          streamCost = parsed.usage.cost;
-        }
-      } catch { /* non-JSON chunk, skip */ }
-    }
-
-    // Forward the raw bytes to our response stream
-    await writer.write(value);
+    chunks.push(value);
   }
+
+  // Decode and concatenate all chunks
+  const allBytes = new Uint8Array(chunks.reduce((acc, chunk) => acc + chunk.length, 0));
+  let offset = 0;
+  for (const chunk of chunks) {
+    allBytes.set(chunk, offset);
+    offset += chunk.length;
+  }
+
+  // Parse SSE format to extract content and cost
+  const buf = dec.decode(allBytes);
+  const lines = buf.split("\n");
+  let accumulatedDelta = "";
+
+  for (const line of lines) {
+    if (!line.startsWith("data: ")) continue;
+    const raw = line.slice(6).trim();
+    if (raw === "[DONE]") continue;
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed.usage && typeof parsed.usage.cost === "number") {
+        streamCost = parsed.usage.cost;
+      }
+      if (parsed.choices?.[0]?.delta?.content) {
+        accumulatedDelta += parsed.choices[0].delta.content;
+      }
+    } catch { /* non-JSON chunk, skip */ }
+  }
+
+  // Validate and clean mermaid syntax
+  const cleanedContent = validateAndCleanMermaid(accumulatedDelta);
+
+  // Stream cleaned content as fake SSE chunks for compatibility
+  const chunkSize = 20; // Send in small chunks for streaming feel
+  for (let i = 0; i < cleanedContent.length; i += chunkSize) {
+    const chunk = cleanedContent.slice(i, i + chunkSize);
+    const fakeSSE = `data: ${JSON.stringify({ choices: [{ delta: { content: chunk } }] })}\n\n`;
+    await writer.write(enc.encode(fakeSSE));
+  }
+
+  // Send final done
+  await writer.write(enc.encode("data: [DONE]\n\n"));
 
   return streamCost;
 }
