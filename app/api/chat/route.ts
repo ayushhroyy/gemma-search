@@ -49,9 +49,19 @@ async function llm(
   const res = await fetch(OR_BASE, {
     method: "POST",
     headers: OR_HEADERS(key),
-    body: JSON.stringify({ model, messages, stream: false, max_tokens: maxTokens, usage: { include: true } }),
+    body: JSON.stringify({ 
+      model, 
+      messages, 
+      stream: false, 
+      max_tokens: maxTokens, 
+      usage: { include: true },
+      include_reasoning: false 
+    }),
   });
-  if (!res.ok) throw new Error(`LLM (${model}) ${res.status}`);
+  if (!res.ok) {
+    const errorData = await res.text();
+    throw new Error(`LLM (${model}) ${res.status}: ${errorData}`);
+  }
   const data = await res.json();
   const text = data.choices?.[0]?.message?.content ?? "";
   // OpenRouter returns cost in USD directly on `usage.cost`
@@ -78,9 +88,13 @@ async function llmStream(
       stream: true,
       // Ask OpenRouter to include usage in the stream finale
       stream_options: { include_usage: true },
+      include_reasoning: false,
     }),
   });
-  if (!res.ok) throw new Error(`LLM stream (${model}) ${res.status}`);
+  if (!res.ok) {
+    const errorData = await res.text();
+    throw new Error(`LLM stream (${model}) ${res.status}: ${errorData}`);
+  }
   return res;
 }
 
