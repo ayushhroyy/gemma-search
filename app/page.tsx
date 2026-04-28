@@ -371,6 +371,7 @@ export default function HomePage() {
         onNewChat={startNewChat}
         modelConfig={modelConfig}
         onModelChange={setModelConfig}
+        localModels={localModels}
       />
 
       {isChatMode ? (
@@ -1079,6 +1080,7 @@ interface HeaderProps {
   onNewChat?: () => void;
   modelConfig: ModelConfig;
   onModelChange: (c: ModelConfig) => void;
+  localModels?: LocalModel[];
 }
 
 function Header({
@@ -1091,6 +1093,7 @@ function Header({
   onNewChat,
   modelConfig,
   onModelChange,
+  localModels,
 }: HeaderProps) {
   return (
     <header className="fixed top-0 left-0 right-0 z-20 px-3 sm:px-6 py-3 sm:py-4">
@@ -1132,9 +1135,9 @@ function Header({
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3">
-          <ModelPicker 
-            config={modelConfig} 
-            onChange={(c) => setModelConfig(c)} 
+          <ModelPicker
+            config={modelConfig}
+            onChange={onModelChange}
             localModels={localModels}
           />
           <button
