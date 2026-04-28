@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+export const runtime = 'edge';
+
 export interface LocalModel {
   id: string;
   label: string;
