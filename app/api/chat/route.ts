@@ -46,11 +46,26 @@ async function llm(
   messages: ORMessage[],
   maxTokens = 512
 ): Promise<{ text: string; cost: number; promptTokens: number; completionTokens: number }> {
-  const res = await fetch(OR_BASE, {
+  let baseUrl = OR_BASE;
+  let headers: Record<string, string> = OR_HEADERS(key);
+  let actualModel = model;
+
+  if (model.startsWith("lmstudio/")) {
+    baseUrl = "http://localhost:1234/v1/chat/completions";
+    actualModel = model.replace("lmstudio/", "");
+    headers = { "Content-Type": "application/json" };
+  } else if (model.startsWith("ollama/")) {
+    // Try the OpenAI compatible endpoint first
+    baseUrl = "http://localhost:11434/v1/chat/completions";
+    actualModel = model.replace("ollama/", "");
+    headers = { "Content-Type": "application/json" };
+  }
+
+  const res = await fetch(baseUrl, {
     method: "POST",
-    headers: OR_HEADERS(key),
+    headers,
     body: JSON.stringify({ 
-      model, 
+      model: actualModel, 
       messages, 
       stream: false, 
       max_tokens: maxTokens 
@@ -82,15 +97,32 @@ async function llmStream(
   messages: ORMessage[],
   includeReasoning = false
 ): Promise<Response> {
-  const res = await fetch(OR_BASE, {
+  let baseUrl = OR_BASE;
+  let headers: Record<string, string> = OR_HEADERS(key);
+  let actualModel = model;
+  let streamOptions: any = { include_usage: true };
+
+  if (model.startsWith("lmstudio/")) {
+    baseUrl = "http://localhost:1234/v1/chat/completions";
+    actualModel = model.replace("lmstudio/", "");
+    headers = { "Content-Type": "application/json" };
+    streamOptions = undefined; // LMS might not support include_usage in stream_options
+  } else if (model.startsWith("ollama/")) {
+    baseUrl = "http://localhost:11434/v1/chat/completions";
+    actualModel = model.replace("ollama/", "");
+    headers = { "Content-Type": "application/json" };
+    streamOptions = undefined;
+  }
+
+  const res = await fetch(baseUrl, {
     method: "POST",
-    headers: OR_HEADERS(key),
+    headers,
     body: JSON.stringify({
-      model,
+      model: actualModel,
       messages,
       stream: true,
       // Ask OpenRouter to include usage in the stream finale
-      stream_options: { include_usage: true },
+      stream_options: streamOptions,
       include_reasoning: includeReasoning,
       reasoning_effort: "none",
     }),

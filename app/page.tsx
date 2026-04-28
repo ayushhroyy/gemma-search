@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Menu, X, Plus, Sun, Moon, ArrowRight, Paperclip, ChevronDown, Cpu, Square, Copy, Download, Pencil, Check } from "lucide-react";
 import mermaid from "mermaid";
+import { useLocalModels, type LocalModel } from "./hooks/useLocalModels";
 
 // ─── Gemma Models ─────────────────────────────────────────────────────────────
 const GEMMA_MODELS = [
@@ -77,6 +78,7 @@ export default function HomePage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [modelConfig, setModelConfig] = useState<ModelConfig>(DEFAULT_MODELS);
+  const localModels = useLocalModels();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -1130,7 +1132,11 @@ function Header({
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3">
-          <ModelPicker config={modelConfig} onChange={onModelChange} />
+          <ModelPicker 
+            config={modelConfig} 
+            onChange={(c) => setModelConfig(c)} 
+            localModels={localModels}
+          />
           <button
             onClick={onToggleTheme}
             className="rounded-xl p-2.5 text-[var(--text-primary)] transition-all duration-200 hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)] active:scale-95"
@@ -1751,7 +1757,15 @@ const AGENT_LABELS: Record<"router" | "selector" | "writer", string> = {
   writer:   "Writer",
 };
 
-function ModelPicker({ config, onChange }: { config: ModelConfig; onChange: (c: ModelConfig) => void }) {
+function ModelPicker({ 
+  config, 
+  onChange, 
+  localModels = [] 
+}: { 
+  config: ModelConfig; 
+  onChange: (c: ModelConfig) => void;
+  localModels?: LocalModel[];
+}) {
   const [open, setOpen] = useState(false);
   const [showCustom, setShowCustom] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -1766,8 +1780,9 @@ function ModelPicker({ config, onChange }: { config: ModelConfig; onChange: (c: 
   }, [open]);
 
   const toggleUniMode = () => onChange({ ...config, uniMode: !config.uniMode });
-
-  const isCustom = (id: string) => !GEMMA_MODELS.some(m => m.id === id);
+  const isCustom = (id: string) => 
+    !GEMMA_MODELS.some(m => m.id === id) && 
+    !localModels.some(m => m.id === id);
 
   return (
     <div ref={ref} className="relative">
@@ -1868,9 +1883,18 @@ function ModelPicker({ config, onChange }: { config: ModelConfig; onChange: (c: 
                     color: "var(--text-primary)",
                   }}
                 >
-                  {GEMMA_MODELS.map((m) => (
-                    <option key={m.id} value={m.id}>{m.label}</option>
-                  ))}
+                  <optgroup label="Cloud Models">
+                    {GEMMA_MODELS.map((m) => (
+                      <option key={m.id} value={m.id}>{m.label}</option>
+                    ))}
+                  </optgroup>
+                  {localModels.length > 0 && (
+                    <optgroup label="Local Models">
+                      {localModels.map((m) => (
+                        <option key={m.id} value={m.id}>{m.label}</option>
+                      ))}
+                    </optgroup>
+                  )}
                   <option value="custom">Custom...</option>
                 </select>
               )}
@@ -1915,9 +1939,18 @@ function ModelPicker({ config, onChange }: { config: ModelConfig; onChange: (c: 
                             color: "var(--text-primary)",
                           }}
                         >
-                          {GEMMA_MODELS.map((m) => (
-                            <option key={m.id} value={m.id}>{m.label}</option>
-                          ))}
+                          <optgroup label="Cloud Models">
+                            {GEMMA_MODELS.map((m) => (
+                              <option key={m.id} value={m.id}>{m.label}</option>
+                            ))}
+                          </optgroup>
+                          {localModels.length > 0 && (
+                            <optgroup label="Local Models">
+                              {localModels.map((m) => (
+                                <option key={m.id} value={m.id}>{m.label}</option>
+                              ))}
+                            </optgroup>
+                          )}
                           <option value="custom">Custom...</option>
                         </select>
                       )}
@@ -1928,7 +1961,7 @@ function ModelPicker({ config, onChange }: { config: ModelConfig; onChange: (c: 
             </div>
           )}
           <p className="text-[10px] mt-4 leading-snug" style={{ color: "var(--text-tertiary)" }}>
-            {showCustom ? "Enter any OpenRouter model ID (e.g. anthropic/claude-3-opus)" : "All models via OpenRouter · Changes apply to next query"}
+            {showCustom ? "Enter any model ID (e.g. ollama/llama3 or anthropic/claude-3-opus)" : localModels.length > 0 ? `${localModels.length} local models detected · All models available` : "OpenRouter + Local support (LM Studio/Ollama) · Detects running local servers"}
           </p>
         </div>
       )}
