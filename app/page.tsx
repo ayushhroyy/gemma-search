@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { X, Plus, ArrowRight, Paperclip, ChevronDown, Cpu, Square, Copy, Download, Pencil, Check } from "lucide-react";
+import { X, Plus, ArrowRight, Paperclip, ChevronDown, Cpu, Square, Copy, Download, Pencil, Check, Globe, TrendingUp, Sun, Trophy } from "lucide-react";
 import { loadApiKeysState } from "./lib/apiKeys";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Header } from "./components/Header";
@@ -411,11 +411,12 @@ interface LandingInterfaceProps {
 function LandingInterface({ searchQuery, onSearchChange, onSubmit, onKeyDown, placeholder, onSuggestionClick, isTyping, onStop, onAttach, selectedImage, onRemoveImage }: LandingInterfaceProps) {
   return (
     <main className="relative z-10 flex h-full items-center justify-center px-4 sm:px-6">
-      <div className="relative w-full max-w-3xl flex items-center justify-center">
-        <div className="absolute -top-[clamp(4rem,8vh,6rem)] left-0 right-0 flex justify-center pointer-events-none">
+      <div className="relative w-full max-w-3xl">
+        <div className="absolute bottom-full left-0 right-0 mb-6 flex justify-center pointer-events-none">
           <Logo />
         </div>
-        <div className="relative w-full">
+        
+        <div className="w-full">
           <SearchBox
             value={searchQuery}
             onChange={onSearchChange}
@@ -429,7 +430,8 @@ function LandingInterface({ searchQuery, onSearchChange, onSubmit, onKeyDown, pl
             onRemoveImage={onRemoveImage}
           />
         </div>
-        <div className="absolute -bottom-[clamp(5rem,12vh,8rem)] left-0 right-0 flex justify-center pointer-events-none">
+        
+        <div className="absolute top-full left-0 right-0 mt-6 flex justify-center pointer-events-none">
           <SuggestedQueries onSelect={onSuggestionClick} />
         </div>
       </div>
@@ -817,8 +819,8 @@ function SearchBox({
   };
 
   return (
-    <div className="relative mb-8 animate-fade-in" style={{ animationDelay: "0.1s" }}>
-      <div className="relative rounded-2xl border transition-all duration-300 ease-out hover:shadow-xl"
+    <div className="relative animate-fade-in" style={{ animationDelay: "0.1s" }}>
+      <div className="relative rounded-2xl border transition-all duration-300 ease-out"
         style={{
           backgroundColor: "var(--bg-secondary)",
           borderColor: isFocused ? "var(--accent-color)" : "var(--border-color)",
@@ -879,22 +881,27 @@ function SearchBox({
 
 function SuggestedQueries({ onSelect }: { onSelect: (t: string) => void }) {
   const suggestions = [
-    { icon: "📰", label: "News" },
-    { icon: "📉", label: "Stocks" },
-    { icon: "🌤️", label: "Weather" },
-    { icon: "🏀", label: "Sports" },
+    { icon: <Globe className="w-4 h-4" />, text: "Latest news" },
+    { icon: <TrendingUp className="w-4 h-4" />, text: "Stock market" },
+    { icon: <Sun className="w-4 h-4" />, text: "Weather forecast" },
+    { icon: <Trophy className="w-4 h-4" />, text: "Sports scores" },
   ];
 
   return (
-    <div className="grid grid-cols-2 sm:flex sm:flex-wrap justify-center gap-2 animate-fade-in w-full px-4" style={{ animationDelay: "0.2s" }}>
+    <div className="grid grid-cols-2 sm:flex sm:flex-wrap justify-center gap-2.5 sm:gap-3 animate-fade-in px-4 w-full max-w-xl sm:max-w-none pointer-events-auto" style={{ animationDelay: "0.2s" }}>
       {suggestions.map((suggestion, index) => (
-        <button key={index} onClick={() => onSelect(suggestion.label)}
-          className="flex items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-medium transition-all duration-200"
-          style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-color)", color: "var(--text-secondary)", boxShadow: "var(--shadow-subtle)" }}
-          onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "var(--shadow-medium)"; e.currentTarget.style.borderColor = "var(--accent-color)"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "var(--shadow-subtle)"; e.currentTarget.style.borderColor = "var(--border-color)"; }}>
-          <span className="text-lg">{suggestion.icon}</span>
-          <span>{suggestion.label}</span>
+        <button key={index} onClick={() => onSelect(suggestion.text)}
+          className="flex items-center justify-center sm:justify-start gap-2.5 rounded-xl border px-4 py-3 sm:py-2.5 text-[13px] sm:text-sm font-medium transition-colors duration-200 group active:scale-[0.98]"
+          style={{ 
+            backgroundColor: "var(--bg-secondary)", 
+            borderColor: "var(--border-color)", 
+            color: "var(--text-secondary)", 
+            boxShadow: "var(--shadow-subtle)" 
+          }}>
+          <span className="opacity-70 group-hover:opacity-100 transition-opacity" style={{ color: "var(--accent-color)" }}>
+            {suggestion.icon}
+          </span>
+          <span className="truncate">{suggestion.text}</span>
         </button>
       ))}
     </div>
