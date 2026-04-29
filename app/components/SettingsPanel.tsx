@@ -89,8 +89,8 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
           <div className="flex items-center justify-between px-6 py-5 border-b" style={{ borderColor: "var(--border-color)" }}>
             <div className="flex items-center gap-3">
               <div className="flex items-center justify-center w-9 h-9 rounded-xl"
-                style={{ background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" }}>
-                <Settings className="w-4 h-4 text-white" />
+                style={{ background: "var(--accent-glow)", border: "1px solid var(--border-color)" }}>
+                <Settings className="w-4 h-4" style={{ color: "var(--accent-color)" }} />
               </div>
               <div>
                 <h2 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Settings</h2>
@@ -226,8 +226,8 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
                   <div className="flex gap-2">
                     <button onClick={handleAddCustom}
                       disabled={!customForm.name || !customForm.endpoint}
-                      className="flex-1 rounded-lg px-4 py-2.5 text-sm font-medium disabled:opacity-40 transition-all hover:scale-[1.02] active:scale-[0.98]"
-                      style={{ background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)", color: "#fff" }}>
+                      className="flex-1 rounded-lg px-4 py-2.5 text-sm font-medium disabled:opacity-40 transition-all active:scale-[0.98]"
+                      style={{ background: "var(--accent-color)", color: "#fff" }}>
                       <Check className="w-4 h-4 inline mr-1" /> Add
                     </button>
                     <button onClick={() => setShowCustomForm(false)}

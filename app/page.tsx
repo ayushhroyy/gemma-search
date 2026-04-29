@@ -429,7 +429,7 @@ function LandingInterface({ searchQuery, onSearchChange, onSubmit, onKeyDown, pl
             onRemoveImage={onRemoveImage}
           />
         </div>
-        <div className="absolute -bottom-[clamp(3.5rem,6vh,5rem)] left-0 right-0 flex justify-center pointer-events-none px-4">
+        <div className="absolute -bottom-[clamp(5rem,12vh,8rem)] left-0 right-0 flex justify-center pointer-events-none">
           <SuggestedQueries onSelect={onSuggestionClick} />
         </div>
       </div>
@@ -879,23 +879,22 @@ function SearchBox({
 
 function SuggestedQueries({ onSelect }: { onSelect: (t: string) => void }) {
   const suggestions = [
-    { icon: "📰", text: "Latest news", shortText: "News" },
-    { icon: "📉", text: "Stock market", shortText: "Stocks" },
-    { icon: "🌤️", text: "Weather forecast", shortText: "Weather" },
-    { icon: "🏀", text: "Sports scores", shortText: "Sports" },
+    { icon: "📰", label: "News" },
+    { icon: "📉", label: "Stocks" },
+    { icon: "🌤️", label: "Weather" },
+    { icon: "🏀", label: "Sports" },
   ];
 
   return (
-    <div className="flex flex-wrap justify-center gap-2 sm:gap-3 animate-fade-in pointer-events-auto" style={{ animationDelay: "0.2s" }}>
+    <div className="grid grid-cols-2 sm:flex sm:flex-wrap justify-center gap-2 animate-fade-in w-full px-4" style={{ animationDelay: "0.2s" }}>
       {suggestions.map((suggestion, index) => (
-        <button key={index} onClick={() => onSelect(suggestion.text)}
-          className="flex items-center gap-1.5 sm:gap-2 rounded-full border px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm transition-all duration-100 whitespace-nowrap"
+        <button key={index} onClick={() => onSelect(suggestion.label)}
+          className="flex items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-medium transition-all duration-200"
           style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-color)", color: "var(--text-secondary)", boxShadow: "var(--shadow-subtle)" }}
-          onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "var(--shadow-medium)"; e.currentTarget.style.color = "var(--text-primary)"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "var(--shadow-subtle)"; e.currentTarget.style.color = "var(--text-secondary)"; }}>
-          <span className="text-sm sm:text-base">{suggestion.icon}</span>
-          <span className="hidden sm:inline">{suggestion.text}</span>
-          <span className="sm:hidden">{suggestion.shortText}</span>
+          onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "var(--shadow-medium)"; e.currentTarget.style.borderColor = "var(--accent-color)"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "var(--shadow-subtle)"; e.currentTarget.style.borderColor = "var(--border-color)"; }}>
+          <span className="text-lg">{suggestion.icon}</span>
+          <span>{suggestion.label}</span>
         </button>
       ))}
     </div>
