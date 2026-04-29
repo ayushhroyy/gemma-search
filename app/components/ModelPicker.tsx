@@ -1,164 +1,234 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
-import { createPortal } from "react-dom";
-import { ChevronDown, Check } from "lucide-react";
+import React, { useState, useRef } from "react";
+import { Cpu, ChevronDown } from "lucide-react";
 import { GEMMA_MODELS, type ModelConfig } from "../lib/types";
 
-const MODELS = GEMMA_MODELS;
+const AGENT_LABELS: Record<"router" | "selector" | "writer" | "uni", string> = {
+  router:   "Router",
+  selector: "Selector",
+  writer:   "Writer",
+  uni:      "Model",
+};
 
-interface ModelPickerProps {
+export function ModelPicker({
+  config,
+  onChange,
+}: {
   config: ModelConfig;
-  onChange: (config: ModelConfig) => void;
-}
-
-export function ModelPicker({ config, onChange }: ModelPickerProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
+  onChange: (c: ModelConfig) => void;
+}) {
+  const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
 
-  const selectedModel = MODELS.find(m => m.id === config.uni) || null;
-
-  useEffect(() => {
-    if (isOpen && inputRef.current) {
-      inputRef.current.focus();
+  const handleClickOutside = (e: MouseEvent) => {
+    if (
+      !triggerRef.current?.contains(e.target as Node) &&
+      !dropdownRef.current?.contains(e.target as Node)
+    ) {
+      setOpen(false);
     }
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handleClickOutside = (e: MouseEvent) => {
-      if (
-        !triggerRef.current?.contains(e.target as Node) &&
-        !dropdownRef.current?.contains(e.target as Node)
-      ) {
-        setIsOpen(false);
-        setSearchQuery("");
-      }
-    };
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setIsOpen(false);
-        setSearchQuery("");
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [isOpen]);
-
-  const handleSelect = (modelId: string) => {
-    onChange({ ...config, uni: modelId, uniMode: true });
-    setIsOpen(false);
-    setSearchQuery("");
   };
 
-  const filteredModels = MODELS.filter(m =>
-    m.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    m.id.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  React.useEffect(() => {
+    if (open) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
 
-  const dropdown = (
-    <div
-      ref={dropdownRef}
-      className="z-50 rounded-lg border shadow-lg animate-fade-in"
-      style={{
-        position: "fixed",
-        width: "280px",
-        maxHeight: "300px",
-        overflow: "hidden",
-        background: "var(--bg-secondary)",
-        borderColor: "var(--border-color)",
-        boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-      }}
-    >
-      {/* Search */}
-      <div className="border-b px-3 py-2" style={{ borderColor: "var(--border-color)" }}>
-        <input
-          ref={inputRef}
-          type="text"
-          placeholder="Search models..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full bg-transparent text-xs outline-none placeholder:opacity-50"
-          style={{ color: "var(--text-primary)" }}
-        />
-      </div>
+  const toggleUniMode = () => onChange({ ...config, uniMode: !config.uniMode });
 
-      {/* Model List */}
-      <div className="overflow-y-auto" style={{ maxHeight: "250px" }}>
-        {filteredModels.length === 0 ? (
-          <div className="px-3 py-8 text-center">
-            <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
-              No models found
-            </p>
-          </div>
-        ) : (
-          filteredModels.map((model) => {
-            const isSelected = config.uni === model.id;
-            return (
-              <button
-                key={model.id}
-                onClick={() => handleSelect(model.id)}
-                className="w-full text-left px-3 py-2 flex items-center justify-between gap-2 transition-colors"
-                style={{
-                  background: isSelected ? "var(--bg-tertiary)" : "transparent",
-                  color: isSelected ? "var(--text-primary)" : "var(--text-secondary)",
-                }}
-                onMouseEnter={(e) => {
-                  if (!isSelected) {
-                    e.currentTarget.style.background = "var(--bg-tertiary)";
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!isSelected) {
-                    e.currentTarget.style.background = "transparent";
-                  }
-                }}
-              >
-                <span className="text-xs truncate">{model.label}</span>
-                {isSelected && <Check className="w-3 h-3 shrink-0" style={{ color: "var(--accent-color)" }} />}
-              </button>
-            );
-          })
-        )}
-      </div>
-    </div>
-  );
+  const handleModelChange = (key: keyof ModelConfig, value: string) => {
+    onChange({ ...config, [key]: value });
+  };
 
   return (
     <div className="relative">
       <button
         ref={triggerRef}
-        onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-1.5 rounded text-xs transition-colors"
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-all"
         style={{
-          background: "var(--bg-tertiary)",
-          color: "var(--text-secondary)",
+          background: open ? "var(--bg-tertiary)" : "var(--bg-secondary)",
           border: "1px solid var(--border-color)",
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.borderColor = "var(--text-tertiary)";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.borderColor = "var(--border-color)";
+          color: "var(--text-secondary)",
         }}
       >
-        <span className="truncate max-w-[120px]">
-          {selectedModel?.label || "Select model"}
-        </span>
-        <ChevronDown className={`w-3 h-3 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+        <Cpu className="w-3.5 h-3.5" style={{ color: "var(--accent-color)" }} />
+        <span>Models</span>
+        <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
 
-      {isOpen && typeof document !== "undefined" && createPortal(dropdown, document.body)}
+      {open && (
+        <div
+          ref={dropdownRef}
+          className="absolute top-full right-0 mt-2 w-72 rounded-xl border p-4 z-50 animate-scale-in"
+          style={{
+            background: "var(--bg-secondary)",
+            borderColor: "var(--border-color)",
+            boxShadow: "var(--shadow-elevated)",
+          }}
+        >
+          {/* Uni Mode Toggle */}
+          <div className="flex items-center justify-between mb-4 pb-3" style={{ borderBottom: "1px solid var(--border-color)" }}>
+            <span className="text-xs font-medium" style={{ color: "var(--text-primary)" }}>Uni Mode</span>
+            <button
+              onClick={toggleUniMode}
+              className="relative w-9 h-5 rounded-full transition-colors duration-200"
+              style={{
+                background: config.uniMode ? "var(--accent-color)" : "var(--bg-tertiary)",
+                border: "1px solid var(--border-color)",
+              }}
+            >
+              <span
+                className="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200"
+                style={{ transform: config.uniMode ? "translateX(16px)" : "translateX(0)" }}
+              />
+            </button>
+          </div>
+
+          {/* Model Selects */}
+          {config.uniMode ? (
+            <div>
+              <ModelSelect
+                label={AGENT_LABELS.uni}
+                value={config.uni}
+                onChange={(v) => handleModelChange("uni", v)}
+                models={GEMMA_MODELS}
+              />
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <ModelSelect
+                label={AGENT_LABELS.router}
+                value={config.router}
+                onChange={(v) => handleModelChange("router", v)}
+                models={GEMMA_MODELS}
+              />
+              <ModelSelect
+                label={AGENT_LABELS.selector}
+                value={config.selector}
+                onChange={(v) => handleModelChange("selector", v)}
+                models={GEMMA_MODELS}
+              />
+              <ModelSelect
+                label={AGENT_LABELS.writer}
+                value={config.writer}
+                onChange={(v) => handleModelChange("writer", v)}
+                models={GEMMA_MODELS}
+              />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface ModelSelectProps {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  models: readonly { id: string; label: string }[];
+}
+
+function ModelSelect({ label, value, onChange, models }: ModelSelectProps) {
+  const [open, setOpen] = useState(false);
+  const [customMode, setCustomMode] = useState(!models.some(m => m.id === value));
+  const selectRef = useRef<HTMLDivElement>(null);
+
+  const handleClickOutside = (e: MouseEvent) => {
+    if (!selectRef.current?.contains(e.target as Node)) {
+      setOpen(false);
+    }
+  };
+
+  React.useEffect(() => {
+    if (open) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
+
+  const selectedModel = models.find(m => m.id === value);
+
+  return (
+    <div ref={selectRef} className="relative">
+      <label className="text-[10px] font-medium uppercase tracking-wider mb-1.5 block" style={{ color: "var(--text-tertiary)" }}>
+        {label}
+      </label>
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-left text-xs transition-all"
+        style={{
+          background: open ? "var(--bg-tertiary)" : "var(--bg-secondary)",
+          border: "1px solid var(--border-color)",
+          color: "var(--text-primary)",
+        }}
+      >
+        <span className="truncate">{customMode ? value : selectedModel?.label || value}</span>
+        <ChevronDown className={`w-3.5 h-3.5 transition-transform flex-shrink-0 ml-2 ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      {open && (
+        <div
+          className="absolute z-50 w-full mt-1 rounded-lg border max-h-60 overflow-auto animate-scale-in"
+          style={{
+            background: "var(--bg-secondary)",
+            borderColor: "var(--border-color)",
+            boxShadow: "var(--shadow-elevated)",
+          }}
+        >
+          {/* Predefined models */}
+          <div className="py-1">
+            {models.map((model) => (
+              <button
+                key={model.id}
+                onClick={() => {
+                  onChange(model.id);
+                  setCustomMode(false);
+                  setOpen(false);
+                }}
+                className="w-full text-left px-3 py-2 text-xs transition-colors truncate"
+                style={{
+                  color: value === model.id ? "var(--accent-color)" : "var(--text-secondary)",
+                  background: value === model.id ? "var(--accent-glow)" : "transparent",
+                }}
+              >
+                {model.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Custom option divider */}
+          <div className="h-px my-1" style={{ background: "var(--border-color)" }} />
+
+          {/* Custom model input */}
+          <div className="p-2">
+            <input
+              type="text"
+              value={customMode ? value : ""}
+              onChange={(e) => {
+                onChange(e.target.value);
+                setCustomMode(true);
+              }}
+              onClick={(e) => e.stopPropagation()}
+              placeholder="Custom model ID..."
+              className="w-full px-3 py-2 rounded-lg text-xs border outline-none font-mono"
+              style={{
+                background: "var(--bg-tertiary)",
+                borderColor: "var(--border-color)",
+                color: "var(--text-primary)",
+              }}
+            />
+            <p className="text-[10px] mt-1.5 px-1" style={{ color: "var(--text-quaternary)" }}>
+              e.g. anthropic/claude-3-5-sonnet
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
