@@ -18,15 +18,18 @@ export interface ApiKeyConfig {
   isDefault?: boolean;
 }
 
+export interface CustomEndpoint {
+  id: string;
+  name: string;
+  endpoint: string;
+  modelId?: string;
+  apiKey?: string;
+  provider: "lmstudio" | "ollama" | "openai" | "anthropic" | "custom";
+}
+
 export interface ApiKeysState {
   keys: Record<ApiProvider, ApiKeyConfig | null>;
-  customEndpoints: Array<{
-    id: string;
-    name: string;
-    endpoint: string;
-    apiKey?: string;
-    provider: "openai" | "anthropic" | "custom";
-  }>;
+  customEndpoints: CustomEndpoint[];
 }
 
 const DEFAULT_STATE: ApiKeysState = {
@@ -81,7 +84,7 @@ export function getApiKey(provider: ApiProvider): ApiKeyConfig | null {
   return state.keys[provider];
 }
 
-export function addCustomEndpoint(endpoint: Omit<ApiKeysState["customEndpoints"][number], "id">): ApiKeysState {
+export function addCustomEndpoint(endpoint: Omit<CustomEndpoint, "id">): ApiKeysState {
   const state = loadApiKeysState();
   state.customEndpoints.push({
     ...endpoint,
@@ -189,3 +192,22 @@ export const PROVIDER_INFO: Record<ApiProvider, {
     placeholderEndpoint: "https://your-endpoint.com/v1/chat/completions",
   },
 };
+
+export const LOCAL_PROVIDERS = {
+  lmstudio: {
+    name: "LM Studio",
+    icon: "🖥️",
+    color: "#b45309",
+    defaultEndpoint: "http://localhost:1234/v1",
+    description: "Local models via LM Studio",
+    placeholderModel: "e.g. google/gemma-3-27b-it",
+  },
+  ollama: {
+    name: "Ollama",
+    icon: "🦙",
+    color: "#6366f1",
+    defaultEndpoint: "http://localhost:11434",
+    description: "Local models via Ollama",
+    placeholderModel: "e.g. llama3, mistral, codellama",
+  },
+} as const;
