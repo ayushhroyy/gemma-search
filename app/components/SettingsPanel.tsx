@@ -77,10 +77,6 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
     setState(setApiKey(provider, null));
   };
 
-  const handleRemoveKey = (provider: ApiProvider) => {
-    setState(setApiKey(provider, null));
-  };
-
   const handleAddCustom = () => {
     if (!customForm.name || !customForm.endpoint) return;
     setState(addCustomEndpoint({

@@ -3,7 +3,7 @@
 import React from "react";
 import { Plus, Sun, Moon, Settings } from "lucide-react";
 import { ModelPicker } from "./ModelPicker";
-import type { ModelConfig, LocalModel } from "../lib/types";
+import type { ModelConfig } from "../lib/types";
 
 interface HeaderProps {
   isDark: boolean;
@@ -23,7 +23,6 @@ export function Header({
   isChatMode = false,
   onNewChat,
   modelConfig,
-  onModelChange,
   onModelChange,
   onShowSettings,
 }: HeaderProps) {
