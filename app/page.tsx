@@ -524,8 +524,8 @@ function ChatInterface({
   };
 
   return (
-    <main className="relative z-10 flex h-full flex-col pb-6 pt-20 sm:pt-24">
-      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto w-full px-4 sm:px-6 py-6 sm:py-4">
+    <main className="relative z-10 flex h-full flex-col pb-6 pt-12 sm:pt-14">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto w-full px-4 sm:px-6 py-2">
         <div className="max-w-3xl w-full mx-auto">
           {messages.map((message, idx) => (
             <ResearchCardMessage
@@ -682,7 +682,7 @@ function ResearchCardMessage({ message, isFirst, onEditUserMessage }: ResearchCa
   };
 
   return (
-    <div className={`mb-8 ${isFirst ? "mt-4 sm:mt-0" : "mt-12"} animate-fade-in`}>
+    <div className={`mb-8 ${isFirst ? "mt-2 sm:mt-0" : "mt-12"} animate-fade-in`}>
       {isUser ? (
         <div className="flex justify-end mb-8">
           <div className="max-w-lg group">
