@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 
-export const runtime = "nodejs";
+export const runtime = "edge";
 
 // ─── Defaults ─────────────────────────────────────────────────────────────────
 const DEFAULT_ROUTER   = "google/gemma-4-31b-it";
@@ -57,9 +57,6 @@ interface ApiKeysRequest {
 
 // ─── Provider Resolution ───────────────────────────────────────────────────────
 function detectProviderFromModel(model: string): ApiProvider {
-  if (model.startsWith("lmstudio/")) return "custom";
-  if (model.startsWith("ollama/")) return "custom";
-
   // Check for provider-specific model prefixes
   if (model.startsWith("deepseek/")) return "deepseek";
   if (model.startsWith("openai/")) return "openai";
@@ -77,25 +74,6 @@ function resolveProviderConfig(
   const provider = detectProviderFromModel(model);
   const keys = apiKeys.keys || {};
   const customEndpoints = apiKeys.customEndpoints || [];
-
-  // Handle local models first
-  if (model.startsWith("lmstudio/")) {
-    return {
-      baseUrl: "http://localhost:1234/v1/chat/completions",
-      headers: { "Content-Type": "application/json" },
-      actualModel: model.replace("lmstudio/", ""),
-      streamOptions: undefined,
-    };
-  }
-
-  if (model.startsWith("ollama/")) {
-    return {
-      baseUrl: "http://localhost:11434/v1/chat/completions",
-      headers: { "Content-Type": "application/json" },
-      actualModel: model.replace("ollama/", ""),
-      streamOptions: undefined,
-    };
-  }
 
   // Check for custom endpoint matching
   const customEndpoint = customEndpoints.find(ep => model.startsWith(`custom/${ep.id}/`));
