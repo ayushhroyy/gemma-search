@@ -2,9 +2,8 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Cpu, ChevronDown, Check, Pencil } from "lucide-react";
+import { Cpu, ChevronDown, Check, Pencil, Sparkles } from "lucide-react";
 import { GEMMA_MODELS, type ModelConfig } from "../lib/types";
-import { loadApiKeysState, type CustomEndpoint } from "../lib/apiKeys";
 
 const AGENT_LABELS: Record<"router" | "selector" | "writer", string> = {
   router:   "Router",
@@ -21,39 +20,28 @@ export function ModelPicker({
 }) {
   const [open, setOpen] = useState(false);
   const [showCustom, setShowCustom] = useState(false);
-  const [position, setPosition] = useState<{ top: number; left: number | "auto"; right: number | "auto" }>({
-    top: 0,
-    left: 0,
-    right: "auto",
-  });
+  const [position, setPosition] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const updatePosition = () => {
     if (triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect();
-      const dropdownWidth = Math.max(288, Math.min(360, window.innerWidth * 0.9));
+      const dropdownWidth = Math.max(280, Math.min(340, window.innerWidth * 0.9));
       const padding = 12;
 
       let left = rect.left + (rect.width / 2) - (dropdownWidth / 2);
-      
-      // Clamp to screen edges
       if (left < padding) left = padding;
       if (left + dropdownWidth > window.innerWidth - padding) {
         left = window.innerWidth - dropdownWidth - padding;
       }
 
-      setPosition({
-        top: rect.bottom + 8,
-        left: left,
-        right: "auto",
-      });
+      setPosition({ top: rect.bottom + 8, left });
     }
   };
 
   useEffect(() => {
     if (!open) return;
-    
     updatePosition();
     window.addEventListener("resize", updatePosition);
     window.addEventListener("scroll", updatePosition, true);
@@ -64,6 +52,7 @@ export function ModelPicker({
         !dropdownRef.current?.contains(e.target as Node)
       ) {
         setOpen(false);
+        setShowCustom(false);
       }
     };
     document.addEventListener("mousedown", handler);
@@ -75,148 +64,123 @@ export function ModelPicker({
   }, [open]);
 
   const toggleOpen = () => {
-    if (!open) {
-      updatePosition();
-    }
+    if (!open) updatePosition();
     setOpen(!open);
   };
 
   const toggleUniMode = () => onChange({ ...config, uniMode: !config.uniMode });
-  const isCustom = (id: string) =>
-    !GEMMA_MODELS.some(m => m.id === id);
 
-  const configuredEndpoints: CustomEndpoint[] = typeof window !== "undefined"
-    ? loadApiKeysState().customEndpoints
-    : [];
-  const endpointModels = configuredEndpoints
-    .filter(e => e.modelId)
-    .map(e => ({
-      id: `${e.provider}/${e.modelId}`,
-      label: `${e.name}: ${e.modelId}`,
-    }));
+  const handleModelChange = (agent: keyof ModelConfig, value: string) => {
+    onChange({ ...config, [agent]: value });
+  };
 
-  const selectOptions = (
-    <>
-      <optgroup label="Cloud Models">
-        {GEMMA_MODELS.map((m) => (
-          <option key={m.id} value={m.id}>{m.label}</option>
-        ))}
-      </optgroup>
-      {endpointModels.length > 0 && (
-        <optgroup label="Configured">
-          {endpointModels.map((m) => (
-            <option key={m.id} value={m.id}>{m.label}</option>
-          ))}
-        </optgroup>
-      )}
-      <option value="custom">Custom...</option>
-    </>
-  );
+  const quickModels = GEMMA_MODELS.slice(0, 8);
 
   const dropdown = (
     <div
       ref={dropdownRef}
-      className="z-[100] rounded-xl border p-3.5 animate-scale-in"
+      className="z-[100] rounded-2xl border p-4 animate-scale-in"
       style={{
         position: "fixed",
         top: `${position.top}px`,
-        left: position.left === "auto" ? "auto" : `${position.left}px`,
-        right: position.right === "auto" ? "auto" : `${position.right}px`,
+        left: `${position.left}px`,
         transformOrigin: "top",
         backgroundColor: "var(--bg-secondary)",
         borderColor: "var(--border-color)",
-        boxShadow: "0 16px 48px rgba(0,0,0,0.2), 0 0 0 1px var(--border-color)",
-        width: "max(288px, min(360px, 90vw))",
+        boxShadow: "0 20px 60px rgba(0,0,0,0.25)",
+        width: "max(280px, min(340px, 90vw))",
         maxHeight: "calc(100dvh - 80px)",
         overflowY: "auto",
       }}
     >
       {/* Uni Mode Toggle */}
-      <div className="flex items-center justify-between mb-3 pb-3"
+      <div className="flex items-center justify-between mb-4 pb-3"
         style={{ borderBottom: "1px solid var(--border-color)" }}>
-        <div>
-          <p className="text-[11px] font-semibold" style={{ color: "var(--text-primary)" }}>Uni Mode</p>
-          <p className="text-[10px] mt-0.5" style={{ color: "var(--text-tertiary)" }}>
-            One model handles everything
-          </p>
+        <div className="flex items-center gap-2">
+          <div className="p-1.5 rounded-lg"
+            style={{ background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" }}>
+            <Sparkles className="w-3 h-3 text-white" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold" style={{ color: "var(--text-primary)" }}>Uni Mode</p>
+            <p className="text-[10px]" style={{ color: "var(--text-tertiary)" }}>One model for all</p>
+          </div>
         </div>
         <button
           onClick={toggleUniMode}
-          className="relative flex-shrink-0 w-9 h-5 rounded-full transition-colors duration-200"
+          className="relative flex-shrink-0 w-10 h-5 rounded-full transition-all duration-200"
           style={{
-            backgroundColor: config.uniMode ? "var(--accent-color)" : "var(--bg-tertiary)",
+            background: config.uniMode
+              ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
+              : "var(--bg-tertiary)",
             border: "1px solid var(--border-color)",
           }}
-          aria-pressed={config.uniMode}
-          aria-label="Toggle Uni Mode"
         >
-          <span className="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200"
-            style={{ transform: config.uniMode ? "translateX(16px)" : "translateX(0px)" }} />
+          <span
+            className="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200"
+            style={{ transform: config.uniMode ? "translateX(20px)" : "translateX(0)" }}
+          />
         </button>
       </div>
 
-      <div className="mb-3">
-        <button
-          onClick={() => setShowCustom(!showCustom)}
-          className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider transition-colors"
-          style={{ color: showCustom ? "var(--accent-color)" : "var(--text-tertiary)" }}
-        >
-          {showCustom ? <Check className="w-3 h-3" /> : <Pencil className="w-3 h-3" />}
-          <span>{showCustom ? "Done" : "Custom"}</span>
-        </button>
-      </div>
+      {/* Mode Toggle */}
+      <button
+        onClick={() => setShowCustom(!showCustom)}
+        className="w-full flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 mb-4 text-xs font-medium transition-all"
+        style={{
+          background: showCustom ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" : "var(--bg-tertiary)",
+          color: showCustom ? "#fff" : "var(--text-secondary)",
+        }}
+      >
+        {showCustom ? <Check className="w-3.5 h-3.5" /> : <Pencil className="w-3.5 h-3.5" />}
+        {showCustom ? "Quick Select" : "Custom Model"}
+      </button>
 
       {config.uniMode ? (
-        <div>
-          {showCustom ? (
-            <input type="text" value={config.uni}
-              onChange={(e) => onChange({ ...config, uni: e.target.value })}
-              placeholder="provider/model-id"
-              className="w-full rounded-lg px-2.5 py-1.5 text-[11px] border outline-none font-mono"
-              style={{ backgroundColor: "var(--bg-tertiary)", borderColor: "var(--border-color)", color: "var(--accent-color)" }} />
-          ) : (
-            <select value={isCustom(config.uni) ? "custom" : config.uni}
-              onChange={(e) => {
-                if (e.target.value === "custom") setShowCustom(true);
-                else onChange({ ...config, uni: e.target.value });
-              }}
-              className="w-full rounded-lg px-2.5 py-1.5 text-[11px] border appearance-none cursor-pointer outline-none"
-              style={{ backgroundColor: "var(--bg-tertiary)", borderColor: "var(--border-color)", color: "var(--text-primary)" }}>
-              {selectOptions}
-            </select>
-          )}
-        </div>
+        showCustom ? (
+          <CustomModelInput
+            value={config.uni}
+            onChange={(v) => handleModelChange("uni", v)}
+            placeholder="Enter any model ID..."
+          />
+        ) : (
+          <QuickModelList
+            selected={config.uni}
+            onSelect={(v) => handleModelChange("uni", v)}
+            models={quickModels}
+          />
+        )
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {(Object.keys(AGENT_LABELS) as ("router" | "selector" | "writer")[]).map((agent) => (
             <div key={agent}>
-              <span className="text-[10px] font-medium block mb-1"
-                style={{ color: "var(--text-tertiary)" }}>{AGENT_LABELS[agent]}</span>
+              <label className="text-[10px] font-medium uppercase tracking-wider mb-1.5 block"
+                style={{ color: "var(--text-tertiary)" }}>
+                {AGENT_LABELS[agent]}
+              </label>
               {showCustom ? (
-                <input type="text" value={config[agent]}
-                  onChange={(e) => onChange({ ...config, [agent]: e.target.value })}
-                  placeholder="provider/model-id"
-                  className="w-full rounded-lg px-2.5 py-1.5 text-[11px] border outline-none font-mono"
-                  style={{ backgroundColor: "var(--bg-tertiary)", borderColor: "var(--border-color)", color: "var(--accent-color)" }} />
+                <CustomModelInput
+                  value={config[agent]}
+                  onChange={(v) => handleModelChange(agent, v)}
+                  placeholder="Enter any model ID..."
+                />
               ) : (
-                <select value={isCustom(config[agent]) ? "custom" : config[agent]}
-                  onChange={(e) => {
-                    if (e.target.value === "custom") setShowCustom(true);
-                    else onChange({ ...config, [agent]: e.target.value });
-                  }}
-                  className="w-full rounded-lg px-2.5 py-1.5 text-[11px] border appearance-none cursor-pointer outline-none"
-                  style={{ backgroundColor: "var(--bg-tertiary)", borderColor: "var(--border-color)", color: "var(--text-primary)" }}>
-                  {selectOptions}
-                </select>
+                <QuickModelList
+                  selected={config[agent]}
+                  onSelect={(v) => handleModelChange(agent, v)}
+                  models={quickModels}
+                />
               )}
             </div>
           ))}
         </div>
       )}
-      <p className="text-[10px] mt-3 leading-snug" style={{ color: "var(--text-tertiary)" }}>
+
+      <p className="text-[10px] mt-4 pt-3 text-center leading-snug"
+        style={{ color: "var(--text-quaternary)", borderTop: "1px solid var(--border-color)" }}>
         {showCustom
-          ? "e.g. ollama/llama3, anthropic/claude-3-opus"
-          : "Free tier via OpenRouter"}
+          ? "Type any model ID: google/gemma-4, anthropic/claude-3-5-sonnet, etc."
+          : "All models served via OpenRouter"}
       </p>
     </div>
   );
@@ -226,21 +190,72 @@ export function ModelPicker({
       <button
         ref={triggerRef}
         onClick={toggleOpen}
-        className="flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-[11px] font-medium transition-all duration-200 active:scale-95"
+        className="flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium transition-all duration-200 active:scale-95"
         style={{
-          backgroundColor: open ? "var(--bg-tertiary)" : "var(--bg-secondary)",
+          background: open ? "var(--bg-tertiary)" : "var(--bg-secondary)",
           color: "var(--text-secondary)",
-          boxShadow: "var(--shadow-subtle)",
           border: "1px solid var(--border-color)",
         }}
-        aria-label="Select agent models"
       >
         <Cpu className="h-3.5 w-3.5" style={{ color: "var(--accent-color)" }} />
-        <span className="hidden sm:inline">{config.uniMode ? "Uni" : "Models"}</span>
-        <ChevronDown className={`h-3 w-3 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+        <span>{config.uniMode ? "Uni" : "Models"}</span>
+        <ChevronDown className={`h-3 w-3 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
 
       {open && typeof document !== "undefined" && createPortal(dropdown, document.body)}
+    </div>
+  );
+}
+
+function CustomModelInput({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+}) {
+  return (
+    <input
+      type="text"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      className="w-full rounded-xl px-3 py-2.5 text-sm border outline-none font-mono transition-all focus:ring-2 focus:ring-[var(--accent-color)]/20"
+      style={{ background: "var(--bg-tertiary)", borderColor: "var(--border-color)", color: "var(--text-primary)" }}
+    />
+  );
+}
+
+function QuickModelList({
+  selected,
+  onSelect,
+  models,
+}: {
+  selected: string;
+  onSelect: (v: string) => void;
+  models: readonly { id: string; label: string }[];
+}) {
+  return (
+    <div className="space-y-1">
+      {models.map((model) => {
+        const isSelected = selected === model.id;
+        return (
+          <button
+            key={model.id}
+            onClick={() => onSelect(model.id)}
+            className="w-full text-left rounded-lg px-3 py-2 text-xs transition-all"
+            style={{
+              background: isSelected ? "linear-gradient(135deg, #667eea15 0%, #764ba215 100%)" : "transparent",
+              color: isSelected ? "var(--accent-color)" : "var(--text-secondary)",
+              border: isSelected ? "1px solid var(--accent-color)" : "1px solid transparent",
+            }}
+          >
+            {model.label}
+          </button>
+        );
+      })}
     </div>
   );
 }

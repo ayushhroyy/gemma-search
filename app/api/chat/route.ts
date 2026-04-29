@@ -57,13 +57,16 @@ interface ApiKeysRequest {
 
 // ─── Provider Resolution ───────────────────────────────────────────────────────
 function detectProviderFromModel(model: string): ApiProvider {
-  // Check for provider-specific model prefixes
+  // Check for explicit custom endpoint prefix first
+  if (model.startsWith("custom/")) return "custom";
+
+  // Check for direct provider prefix (only for users who explicitly type it)
   if (model.startsWith("deepseek/")) return "deepseek";
   if (model.startsWith("openai/")) return "openai";
-  if (model.startsWith("gemini/") || model.startsWith("google/")) return "gemini";
-  if (model.startsWith("anthropic/") || model.startsWith("claude-")) return "anthropic";
+  if (model.startsWith("gemini/")) return "gemini";
+  if (model.startsWith("anthropic/")) return "anthropic";
 
-  // Default to OpenRouter for unknown models
+  // All other models go through OpenRouter (including google/*, claude-*, etc.)
   return "openrouter";
 }
 
