@@ -11,11 +11,6 @@ export interface OpenRouterModel {
   };
 }
 
-export interface ModelCategory {
-  category: string;
-  models: Array<{ id: string; label: string }>;
-}
-
 // Fetch all models from OpenRouter
 export async function fetchOpenRouterModels(): Promise<OpenRouterModel[]> {
   try {
@@ -45,74 +40,13 @@ export function isFreeModel(model: OpenRouterModel): boolean {
   return promptPrice === 0 && completionPrice === 0;
 }
 
-// Categorize models into Gemma, Mistral, Qwen, and Free models
-export function categorizeModels(models: OpenRouterModel[]): ModelCategory[] {
-  const gemmaModels: Array<{ id: string; label: string }> = [];
-  const mistralModels: Array<{ id: string; label: string }> = [];
-  const qwenModels: Array<{ id: string; label: string }> = [];
-  const freeModels: Array<{ id: string; label: string }> = [];
+// Get only free models from OpenRouter
+export async function fetchFreeModels(): Promise<Array<{ id: string; label: string }>> {
+  const models = await fetchOpenRouterModels();
+  const freeModels = models.filter(isFreeModel);
 
-  // Specific Qwen model to always include
-  const qwen359b = models.find(m => m.id.includes("qwen") && m.id.includes("3.5") && m.id.includes("9b"));
-  if (qwen359b) {
-    qwenModels.push({ id: qwen359b.id, label: qwen359b.name || qwen359b.id });
-  }
-
-  for (const model of models) {
-    const id = model.id.toLowerCase();
-    const name = model.name || model.id;
-
-    // Gemma models
-    if (id.includes("gemma")) {
-      gemmaModels.push({ id: model.id, label: name });
-    }
-
-    // Mistral models
-    if (id.includes("mistral")) {
-      mistralModels.push({ id: model.id, label: name });
-    }
-
-    // Qwen models (excluding the one we already added)
-    if (id.includes("qwen") && !qwenModels.some(m => m.id === model.id)) {
-      qwenModels.push({ id: model.id, label: name });
-    }
-
-    // Free models
-    if (isFreeModel(model)) {
-      freeModels.push({ id: model.id, label: name });
-    }
-  }
-
-  const categories: ModelCategory[] = [];
-
-  if (gemmaModels.length > 0) {
-    categories.push({ category: "Gemma Models", models: gemmaModels });
-  }
-
-  if (mistralModels.length > 0) {
-    categories.push({ category: "Mistral Models", models: mistralModels });
-  }
-
-  if (qwenModels.length > 0) {
-    categories.push({ category: "Qwen Models", models: qwenModels });
-  }
-
-  if (freeModels.length > 0) {
-    categories.push({ category: "Free Models", models: freeModels });
-  }
-
-  return categories;
-}
-
-// Flatten categories for use in select dropdown
-export function flattenModelCategories(categories: ModelCategory[]): Array<{ id: string; label: string }> {
-  const result: Array<{ id: string; label: string }> = [];
-
-  for (const category of categories) {
-    for (const model of category.models) {
-      result.push(model);
-    }
-  }
-
-  return result;
+  return freeModels.map(model => ({
+    id: model.id,
+    label: model.name || model.id,
+  }));
 }

@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Cpu, ChevronDown, Sparkles } from "lucide-react";
 import { GEMMA_MODELS, type ModelConfig } from "../lib/types";
-import { fetchOpenRouterModels, categorizeModels, flattenModelCategories } from "../lib/openrouter";
+import { fetchFreeModels } from "../lib/openrouter";
 
 const AGENT_LABELS: Record<"router" | "selector" | "writer" | "uni", string> = {
   router:   "Router",
@@ -24,17 +24,15 @@ export function ModelPicker({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Fetch models from OpenRouter on mount
+  // Fetch free models from OpenRouter on mount
   useEffect(() => {
     const fetchModels = async () => {
       try {
-        const models = await fetchOpenRouterModels();
-        const categories = categorizeModels(models);
-        const flattenedModels = flattenModelCategories(categories);
-        setDynamicModelsState(flattenedModels);
-        console.log(`Loaded ${flattenedModels.length} models from OpenRouter`);
+        const freeModels = await fetchFreeModels();
+        setDynamicModelsState(freeModels);
+        console.log(`Loaded ${freeModels.length} free models from OpenRouter`);
       } catch (error) {
-        console.error("Failed to fetch OpenRouter models:", error);
+        console.error("Failed to fetch OpenRouter free models:", error);
       }
     };
 
@@ -169,6 +167,9 @@ function NativeSelect({ label, value, onChange, models, dynamicModels }: NativeS
   );
   const isCustom = !uniqueModels.some(m => m.id === value);
 
+  // Get free models
+  const freeModels = dynamicModels.filter(m => m.id.includes(":free"));
+
   return (
     <div>
       <label className="text-[10px] font-medium uppercase tracking-wider mb-1.5 block" style={{ color: "var(--text-tertiary)" }}>
@@ -197,30 +198,14 @@ function NativeSelect({ label, value, onChange, models, dynamicModels }: NativeS
           paddingRight: "32px",
         }}
       >
-        {dynamicModels.length > 0 && (
-          <optgroup label="Gemma Models">
-            {uniqueModels.filter(m => m.id.toLowerCase().includes("gemma")).map((model) => (
-              <option key={model.id} value={model.id}>{model.label}</option>
-            ))}
-          </optgroup>
-        )}
-        {dynamicModels.length > 0 && (
-          <optgroup label="Mistral Models">
-            {uniqueModels.filter(m => m.id.toLowerCase().includes("mistral")).map((model) => (
-              <option key={model.id} value={model.id}>{model.label}</option>
-            ))}
-          </optgroup>
-        )}
-        {dynamicModels.length > 0 && (
-          <optgroup label="Qwen Models">
-            {uniqueModels.filter(m => m.id.toLowerCase().includes("qwen")).map((model) => (
-              <option key={model.id} value={model.id}>{model.label}</option>
-            ))}
-          </optgroup>
-        )}
-        {dynamicModels.length > 0 && (
+        <optgroup label="Cloud Models">
+          {models.map((model) => (
+            <option key={model.id} value={model.id}>{model.label}</option>
+          ))}
+        </optgroup>
+        {freeModels.length > 0 && (
           <optgroup label="Free Models">
-            {uniqueModels.filter(m => m.id.includes(":free")).map((model) => (
+            {freeModels.map((model) => (
               <option key={model.id} value={model.id}>{model.label}</option>
             ))}
           </optgroup>
