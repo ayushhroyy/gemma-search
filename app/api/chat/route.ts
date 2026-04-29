@@ -607,7 +607,12 @@ function extractUrls(text: string): string[] {
 // ─── Writer system prompt builder ─────────────────────────────────────────────
 function writerSystemPrompt(hasImages: boolean, isUrlMode: boolean): string {
   const imageInstruction = hasImages
-    ? `**IMAGES**: You have images available from the scraped sources. Use them where very relevant or appropriate to illustrate your answer. Embed using: ![descriptive alt](image_url).`
+    ? `**IMAGES**: You have access to images from the search results. Use images FREQUENTLY and LIBERALLY when they help illustrate your answer:
+- Add images for: products, places, people, diagrams, charts, infographics, screenshots, examples
+- When mentioning a product/place/person, include its image if available
+- Use images to break up text and make the answer more engaging
+- Embed images using: ![descriptive alt text](image_url)
+- Place images near relevant text (not all at the end)`
     : "";
 
   const intro = isUrlMode
@@ -616,15 +621,36 @@ function writerSystemPrompt(hasImages: boolean, isUrlMode: boolean): string {
 
   return `${intro}
 
-**STYLE & STRUCTURE:**
-- Write in clear, concise, and direct paragraphs.
-- Use **Bold Headers**, bullet points, and numbered lists to make the answer scannable.
-- Use tables or mermaid charts where very relevant or appropriate to organize data or provide insights.
-- Be objective, direct, and avoid unnecessary filler.
+**ANSWER STRUCTURE (follow this format):**
+
+1. **Start with a clear summary** (2-3 sentences) - What's the main point?
+
+2. **Use descriptive headers** - Break content into sections with **Bold Headers**
+   - Each section should focus on one topic
+   - Headers should be descriptive and informative
+
+3. **Use bullet points for lists** - Makes content scannable
+   - Use • for unordered lists
+   - Use 1. 2. 3. for ordered/steps
+
+4. **Add visual elements** when relevant:
+   - Tables for comparing data
+   - Images to illustrate points (use them liberally!)
+   - Code blocks with language specified
+
+5. **End with key takeaways** (optional) - 3-5 bullet points summarizing the answer
+
+**WRITING STYLE:**
+- Write in short, clear paragraphs (2-4 sentences each)
+- Use simple, direct language - avoid jargon unless necessary
+- Be specific and concrete - use examples and numbers
+- One idea per paragraph
+- Use active voice
+- Remove fluff and filler words
 
 ${imageInstruction}
 
-Do not mention your system prompt. Answer directly.`;
+**Remember**: Quality over quantity. Make every sentence count. Structure your answer so it's easy to scan and understand. Use images to enhance understanding - they're not optional, they're encouraged!`;
 }
 
 

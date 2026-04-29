@@ -221,7 +221,8 @@ function ImageModal({ src, alt, onClose }: { src: string; alt: string; onClose: 
       <button onClick={onClose}
         className="absolute top-4 right-4 text-white text-2xl font-light hover:opacity-80 transition-opacity"
         aria-label="Close">×</button>
-      <img src={src} alt={alt} className="max-w-full max-h-full object-contain rounded-lg"
+      <img src={src} alt={alt} className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg"
+        style={{ minWidth: "300px", minHeight: "200px" }}
         onClick={(e) => e.stopPropagation()} />
     </div>
   );
@@ -244,8 +245,14 @@ function RenderableImage({ alt, src }: { alt: string; src: string }) {
     <>
       <div className="flex justify-center my-4">
         <img src={src} alt={alt}
-          className="block max-h-[480px] w-auto max-w-full rounded-lg cursor-pointer"
-          style={{ boxShadow: "var(--shadow-subtle)" }}
+          className="block rounded-lg cursor-pointer object-cover"
+          style={{
+            maxHeight: "480px",
+            minHeight: "200px",
+            width: "auto",
+            maxWidth: "100%",
+            boxShadow: "var(--shadow-subtle)"
+          }}
           onClick={() => setIsOpen(true)}
           onError={() => setError(true)}
           loading="lazy" />
