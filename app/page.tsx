@@ -1,9 +1,11 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { Menu, X, Plus, Sun, Moon, ArrowRight, Paperclip, ChevronDown, Cpu, Square, Copy, Download, Pencil, Check } from "lucide-react";
+import { Menu, X, Plus, Sun, Moon, ArrowRight, Paperclip, ChevronDown, Cpu, Square, Copy, Download, Pencil, Check, Key } from "lucide-react";
 import mermaid from "mermaid";
 import { useLocalModels, type LocalModel } from "./hooks/useLocalModels";
+import { ApiKeysSettings } from "./components/ApiKeysSettings";
+import { loadApiKeysState, type ApiKeysState } from "./lib/apiKeys";
 
 // ─── Gemma Models ─────────────────────────────────────────────────────────────
 const GEMMA_MODELS = [
@@ -80,6 +82,7 @@ export default function HomePage() {
   const [modelConfig, setModelConfig] = useState<ModelConfig>(DEFAULT_MODELS);
   const localModels = useLocalModels();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [showApiKeysSettings, setShowApiKeysSettings] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -223,11 +226,22 @@ export default function HomePage() {
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
+    // Load API keys from localStorage to send to backend
+    const apiKeysState = loadApiKeysState();
+
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query, models: modelConfig, image: imageToSend }),
+        body: JSON.stringify({
+          query,
+          models: modelConfig,
+          image: imageToSend,
+          apiKeys: {
+            keys: apiKeysState.keys,
+            customEndpoints: apiKeysState.customEndpoints,
+          },
+        }),
         signal: controller.signal,
       });
 
@@ -372,6 +386,7 @@ export default function HomePage() {
         modelConfig={modelConfig}
         onModelChange={setModelConfig}
         localModels={localModels}
+        onShowApiKeysSettings={() => setShowApiKeysSettings(true)}
       />
 
       {isChatMode ? (
@@ -405,6 +420,11 @@ export default function HomePage() {
           onRemoveImage={removeImage}
         />
       )}
+
+      <ApiKeysSettings
+        isOpen={showApiKeysSettings}
+        onClose={() => setShowApiKeysSettings(false)}
+      />
     </div>
   );
 }
@@ -494,21 +514,59 @@ function ChatInterface({
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
   const [isFocused, setIsFocused] = useState(false);
-  const [userHasScrolledUp, setUserHasScrolledUp] = useState(false);
+  const isAutoScrolling = useRef(false);
+  const userInteracted = useRef(false);
 
-  // Smart scrolling
+  // Detect user scroll intent via wheel/touch events
   useEffect(() => {
-    if (!userHasScrolledUp) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const onUserScroll = () => {
+      // Only flag user interaction if we're NOT in a programmatic scroll
+      if (!isAutoScrolling.current) {
+        userInteracted.current = true;
+      }
+    };
+
+    container.addEventListener("wheel", onUserScroll, { passive: true });
+    container.addEventListener("touchmove", onUserScroll, { passive: true });
+    return () => {
+      container.removeEventListener("wheel", onUserScroll);
+      container.removeEventListener("touchmove", onUserScroll);
+    };
+  }, []);
+
+  // Smart auto-scroll: follows streaming, stops on user scroll, resumes at bottom
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    // Check if user has scrolled back to the bottom
+    if (userInteracted.current) {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      const isAtBottom = scrollHeight - scrollTop - clientHeight < 80;
+      if (isAtBottom) {
+        userInteracted.current = false;
+      } else {
+        return; // Don't auto-scroll, user is reading up
+      }
     }
-  }, [messages, isTyping, userHasScrolledUp, messagesEndRef]);
+
+    // Auto-scroll to bottom
+    isAutoScrolling.current = true;
+    messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
+    // Reset flag after the browser processes the scroll
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        isAutoScrolling.current = false;
+      });
+    });
+  }, [messages, isTyping, messagesEndRef]);
 
   const handleScroll = () => {
-    if (!scrollContainerRef.current) return;
-    const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
-    // If user is within 100px of the bottom, consider them at the bottom
-    const isAtBottom = scrollHeight - scrollTop - clientHeight < 100;
-    setUserHasScrolledUp(!isAtBottom);
+    // No-op: user intent is tracked via wheel/touch listeners.
+    // Bottom detection runs in the auto-scroll effect.
   };
 
   const placeholders = [
@@ -731,14 +789,36 @@ function ResearchCardMessage({ message, isFirst, onEditUserMessage }: ResearchCa
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleDownload = () => {
-    const blob = new Blob([message.content], { type: "text/markdown" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `gemma-response-${Date.now()}.md`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const handleDownload = async () => {
+    // Find the rendered message content container
+    const messageElement = document.getElementById(`message-${message.id}`);
+    if (!messageElement) return;
+
+    // Dynamically import html2pdf to avoid SSR issues
+    const html2pdf = (await import("html2pdf.js")).default;
+
+    // Configure html2pdf options
+    const opt = {
+      margin: [10, 10, 10, 10] as [number, number, number, number],
+      filename: `gemma-response-${Date.now()}.pdf`,
+      image: { type: "jpeg" as const, quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true, letterRendering: true },
+      jsPDF: { unit: "mm" as const, format: "a4" as const, orientation: "portrait" as const },
+    };
+
+    // Create a temporary container with white background for PDF
+    const tempContainer = document.createElement("div");
+    tempContainer.style.padding = "20px";
+    tempContainer.style.backgroundColor = "#ffffff";
+    tempContainer.style.color = "#000000";
+    tempContainer.innerHTML = messageElement.innerHTML;
+
+    // Generate and download PDF
+    try {
+      await html2pdf().set(opt).from(tempContainer).save();
+    } catch (error) {
+      console.error("Failed to generate PDF:", error);
+    }
   };
 
   const handleCopyUser = () => {
@@ -854,7 +934,7 @@ function ResearchCardMessage({ message, isFirst, onEditUserMessage }: ResearchCa
           )}
 
           {/* Content */}
-          <article className="prose-readable" style={{ fontFamily: "var(--font-body)" }}>
+          <article id={`message-${message.id}`} className="prose-readable" style={{ fontFamily: "var(--font-body)" }}>
             {message.content ? <MarkdownContent content={message.content} /> : (
               <div className="flex items-center gap-2.5 py-2">
                 <div className="flex gap-1">
@@ -898,7 +978,7 @@ function ResearchCardMessage({ message, isFirst, onEditUserMessage }: ResearchCa
                 }}
               >
                 <Download className="w-3.5 h-3.5" />
-                <span>Download .md</span>
+                <span>Download PDF</span>
               </button>
               {/* Cost badge — shown once cost is received */}
               {typeof message.cost === "number" && (
@@ -1081,6 +1161,7 @@ interface HeaderProps {
   modelConfig: ModelConfig;
   onModelChange: (c: ModelConfig) => void;
   localModels?: LocalModel[];
+  onShowApiKeysSettings?: () => void;
 }
 
 function Header({
@@ -1094,6 +1175,7 @@ function Header({
   modelConfig,
   onModelChange,
   localModels,
+  onShowApiKeysSettings,
 }: HeaderProps) {
   return (
     <header className="fixed top-0 left-0 right-0 z-20 px-3 sm:px-6 py-3 sm:py-4">
@@ -1140,6 +1222,14 @@ function Header({
             onChange={onModelChange}
             localModels={localModels}
           />
+          <button
+            onClick={onShowApiKeysSettings}
+            className="rounded-xl p-2.5 text-[var(--text-primary)] transition-all duration-200 hover:bg-[var(--bg-secondary)] hover:text-[var(--accent-color)] active:scale-95"
+            style={{ boxShadow: "var(--shadow-subtle)" }}
+            aria-label="API Keys Settings"
+          >
+            <Key className="h-5 w-5" />
+          </button>
           <button
             onClick={onToggleTheme}
             className="rounded-xl p-2.5 text-[var(--text-primary)] transition-all duration-200 hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)] active:scale-95"
@@ -1298,18 +1388,27 @@ function initializeMermaid() {
     suppressErrorRendering: true,
     theme: "base",
     themeVariables: {
-      primaryColor: "#6366f1",
-      primaryTextColor: "#f8fafc",
-      primaryBorderColor: "#475569",
-      lineColor: "#475569",
-      secondaryColor: "#334155",
-      tertiaryColor: "#1e293b",
-      background: "#0f172a",
-      mainBkg: "#334155",
-      nodeBorder: "#475569",
-      fontSize: "14px",
+      primaryColor: "#88a2b8",
+      primaryTextColor: "#0a0a0a",
+      primaryBorderColor: "#000000",
+      lineColor: "#525252",
+      secondaryColor: "#f5f5f5",
+      tertiaryColor: "#fafafa",
+      background: "#ffffff",
+      mainBkg: "#ffffff",
+      nodeBorder: "#000000",
+      fontSize: "16px",
+      fontFamily: "Outfit, system-ui, sans-serif",
+      labelBackground: "#ffffff",
+      edgeLabelBackground: "#ffffff",
+      tertiaryTextColor: "#0a0a0a",
     },
     securityLevel: "loose",
+    flowchart: {
+      useMaxWidth: false,
+      htmlLabels: true,
+      curve: "basis",
+    },
   });
 }
 
@@ -1323,7 +1422,17 @@ function MermaidChart({ code, id }: { code: string; id: string }) {
       initializeMermaid();
       mermaid.render(id, code)
         .then(({ svg }) => {
-          if (!cancelled) setSvg(svg);
+          if (!cancelled) {
+            // Inject CSS styles into the SVG to ensure labels are visible
+            const styledSvg = svg.replace(
+              /<svg([^>]*)>/,
+              '<svg$1 style="max-width: 100%; height: auto; display: block; margin: 0 auto;">'
+            ).replace(
+              /<style>([\s\S]*?)<\/style>/,
+              '<style>$1 .node rect, .node circle, .node ellipse, .node polygon, .node path { fill: #ffffff; stroke: #000000; stroke-width: 2px; } .node text { font-family: "Outfit", system-ui, sans-serif; font-size: 14px; font-weight: 600; fill: #0a0a0a; } .edgeLabel text { font-family: "Outfit", system-ui, sans-serif; font-size: 13px; font-weight: 500; fill: #0a0a0a; background-color: #ffffff; } .edgePath { stroke: #525252; stroke-width: 2px; fill: none; } .cluster rect { fill: #f5f5f5; stroke: #a3a3a3; stroke-width: 1px; } </style>'
+            );
+            setSvg(styledSvg);
+          }
         })
         .catch((err) => {
           // Silently discard — never show mermaid errors to the user
@@ -1344,9 +1453,16 @@ function MermaidChart({ code, id }: { code: string; id: string }) {
 
   return (
     <div
-      className="mb-4 flex justify-center"
+      className="mb-6 flex justify-center items-center py-4"
       dangerouslySetInnerHTML={{ __html: svg }}
-      style={{ maxWidth: "100%", overflowX: "auto" }}
+      style={{
+        maxWidth: "100%",
+        overflowX: "auto",
+        backgroundColor: "var(--bg-secondary)",
+        borderRadius: "12px",
+        padding: "20px",
+        border: "1px solid var(--border-color)",
+      }}
     />
   );
 }
