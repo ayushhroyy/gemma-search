@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Cpu, ChevronDown, Sparkles } from "lucide-react";
 import { GEMMA_MODELS, type ModelConfig } from "../lib/types";
+import { fetchOpenRouterModels, categorizeModels, flattenModelCategories } from "../lib/openrouter";
 
 const AGENT_LABELS: Record<"router" | "selector" | "writer" | "uni", string> = {
   router:   "Router",
@@ -19,8 +20,26 @@ export function ModelPicker({
   onChange: (c: ModelConfig) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [dynamicModels, setDynamicModelsState] = useState<Array<{ id: string; label: string }>>([]);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Fetch models from OpenRouter on mount
+  useEffect(() => {
+    const fetchModels = async () => {
+      try {
+        const models = await fetchOpenRouterModels();
+        const categories = categorizeModels(models);
+        const flattenedModels = flattenModelCategories(categories);
+        setDynamicModelsState(flattenedModels);
+        console.log(`Loaded ${flattenedModels.length} models from OpenRouter`);
+      } catch (error) {
+        console.error("Failed to fetch OpenRouter models:", error);
+      }
+    };
+
+    fetchModels();
+  }, []);
 
   const handleClickOutside = (e: MouseEvent) => {
     if (
@@ -100,6 +119,7 @@ export function ModelPicker({
                 value={config.uni}
                 onChange={(v) => handleModelChange("uni", v)}
                 models={GEMMA_MODELS}
+                dynamicModels={dynamicModels}
               />
             </div>
           ) : (
@@ -109,18 +129,21 @@ export function ModelPicker({
                 value={config.router}
                 onChange={(v) => handleModelChange("router", v)}
                 models={GEMMA_MODELS}
+                dynamicModels={dynamicModels}
               />
               <NativeSelect
                 label={AGENT_LABELS.selector}
                 value={config.selector}
                 onChange={(v) => handleModelChange("selector", v)}
                 models={GEMMA_MODELS}
+                dynamicModels={dynamicModels}
               />
               <NativeSelect
                 label={AGENT_LABELS.writer}
                 value={config.writer}
                 onChange={(v) => handleModelChange("writer", v)}
                 models={GEMMA_MODELS}
+                dynamicModels={dynamicModels}
               />
             </div>
           )}
@@ -135,10 +158,16 @@ interface NativeSelectProps {
   value: string;
   onChange: (value: string) => void;
   models: readonly { id: string; label: string }[];
+  dynamicModels: Array<{ id: string; label: string }>;
 }
 
-function NativeSelect({ label, value, onChange, models }: NativeSelectProps) {
-  const isCustom = !models.some(m => m.id === value);
+function NativeSelect({ label, value, onChange, models, dynamicModels }: NativeSelectProps) {
+  const allModels = models.length > 0 ? [...models, ...dynamicModels] : [...GEMMA_MODELS, ...dynamicModels];
+  // Remove duplicates
+  const uniqueModels = Array.from(
+    new Map(allModels.map(m => [m.id, m])).values()
+  );
+  const isCustom = !uniqueModels.some(m => m.id === value);
 
   return (
     <div>
@@ -168,11 +197,34 @@ function NativeSelect({ label, value, onChange, models }: NativeSelectProps) {
           paddingRight: "32px",
         }}
       >
-        <optgroup label="Popular Models">
-          {models.map((model) => (
-            <option key={model.id} value={model.id}>{model.label}</option>
-          ))}
-        </optgroup>
+        {dynamicModels.length > 0 && (
+          <optgroup label="Gemma Models">
+            {uniqueModels.filter(m => m.id.toLowerCase().includes("gemma")).map((model) => (
+              <option key={model.id} value={model.id}>{model.label}</option>
+            ))}
+          </optgroup>
+        )}
+        {dynamicModels.length > 0 && (
+          <optgroup label="Mistral Models">
+            {uniqueModels.filter(m => m.id.toLowerCase().includes("mistral")).map((model) => (
+              <option key={model.id} value={model.id}>{model.label}</option>
+            ))}
+          </optgroup>
+        )}
+        {dynamicModels.length > 0 && (
+          <optgroup label="Qwen Models">
+            {uniqueModels.filter(m => m.id.toLowerCase().includes("qwen")).map((model) => (
+              <option key={model.id} value={model.id}>{model.label}</option>
+            ))}
+          </optgroup>
+        )}
+        {dynamicModels.length > 0 && (
+          <optgroup label="Free Models">
+            {uniqueModels.filter(m => m.id.includes(":free")).map((model) => (
+              <option key={model.id} value={model.id}>{model.label}</option>
+            ))}
+          </optgroup>
+        )}
         <option value="__custom__">Custom model ID...</option>
       </select>
       {isCustom && (
@@ -185,7 +237,7 @@ function NativeSelect({ label, value, onChange, models }: NativeSelectProps) {
           className="w-full mt-2 px-3 py-2 rounded-lg text-xs border outline-none font-mono"
           style={{
             background: "var(--bg-tertiary)",
-            borderColor: "var(--border-color)",
+            borderColor: "var(--accent-color)",
             color: "var(--text-primary)",
           }}
         />

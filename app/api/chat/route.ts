@@ -216,7 +216,7 @@ async function llm(
   apiKeys: ApiKeysRequest,
   model: string,
   messages: ORMessage[],
-  maxTokens = 512
+  maxTokens = 1024
 ): Promise<{ text: string; cost: number; promptTokens: number; completionTokens: number }> {
   const provider = detectProviderFromModel(model);
   const config = resolveProviderConfig(model, apiKeys);
@@ -332,7 +332,8 @@ async function llmStream(
   apiKeys: ApiKeysRequest,
   model: string,
   messages: ORMessage[],
-  includeReasoning = false
+  includeReasoning = false,
+  maxTokens = 8192
 ): Promise<Response> {
   const provider = detectProviderFromModel(model);
   const config = resolveProviderConfig(model, apiKeys);
@@ -347,7 +348,7 @@ async function llmStream(
         model: config.actualModel,
         messages: apiMessages,
         system: system || undefined,
-        max_tokens: 4096,
+        max_tokens: maxTokens,
         stream: true,
       }),
     });
@@ -423,7 +424,7 @@ async function llmStream(
     const body: any = {
       contents,
       generationConfig: {
-        maxOutputTokens: 4096,
+        maxOutputTokens: maxTokens,
       },
     };
 
@@ -494,6 +495,7 @@ async function llmStream(
       messages,
       stream: true,
       stream_options: config.streamOptions,
+      max_tokens: maxTokens,
       include_reasoning: includeReasoning,
       reasoning_effort: "none",
     }),
