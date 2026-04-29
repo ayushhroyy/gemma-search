@@ -12,14 +12,12 @@ import {
   type ApiKeyConfig,
   type CustomEndpoint,
   PROVIDER_INFO,
-  LOCAL_PROVIDERS,
 } from "../lib/apiKeys";
 
-type TabId = "api-keys" | "local-models" | "custom-endpoints";
+type TabId = "api-keys" | "custom-endpoints";
 
 const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: "api-keys", label: "API Keys", icon: <Key className="w-3 h-3" /> },
-  { id: "local-models", label: "Local Models", icon: <Cpu className="w-3 h-3" /> },
   { id: "custom-endpoints", label: "Endpoints", icon: <Globe className="w-3 h-3" /> },
 ];
 
@@ -41,7 +39,6 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
     provider: "openai" as CustomEndpoint["provider"],
   });
 
-  const [localDrafts, setLocalDrafts] = useState<Record<string, { endpoint: string; modelId: string }>>({});
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   useEffect(() => {
@@ -49,11 +46,9 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
       const loaded = loadApiKeysState();
       setState(loaded);
       setShowCustomForm(false);
-      const drafts: Record<string, { endpoint: string; modelId: string }> = {};
       loaded.customEndpoints.forEach(ep => {
-        drafts[ep.id] = { endpoint: ep.endpoint, modelId: ep.modelId || "" };
+        // ...
       });
-      setLocalDrafts(drafts);
     }
   }, [isOpen]);
 
@@ -82,42 +77,8 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
     setState(setApiKey(provider, null));
   };
 
-  const handleQuickAddLocal = (type: "lmstudio" | "ollama") => {
-    const info = LOCAL_PROVIDERS[type];
-    const newState = addCustomEndpoint({
-      name: info.name,
-      endpoint: info.defaultEndpoint,
-      modelId: "",
-      provider: type,
-    });
-    setState(newState);
-    const newEp = newState.customEndpoints[newState.customEndpoints.length - 1];
-    setLocalDrafts(prev => ({ ...prev, [newEp.id]: { endpoint: newEp.endpoint, modelId: "" } }));
-    setTimeout(() => {
-      inputRefs.current[`${newEp.id}-modelId`]?.focus();
-    }, 50);
-  };
-
-  const handleLocalBlur = (epId: string) => {
-    const draft = localDrafts[epId];
-    if (!draft) return;
-    const newState = loadApiKeysState();
-    const idx = newState.customEndpoints.findIndex(e => e.id === epId);
-    if (idx !== -1) {
-      newState.customEndpoints[idx] = {
-        ...newState.customEndpoints[idx],
-        endpoint: draft.endpoint,
-        modelId: draft.modelId,
-      };
-      localStorage.setItem("gemma-api-keys", JSON.stringify(newState));
-      setState(newState);
-    }
-  };
-
-  const handleLocalKeyDown = (e: React.KeyboardEvent, epId: string) => {
-    if (e.key === "Enter") {
-      (e.target as HTMLInputElement).blur();
-    }
+  const handleRemoveKey = (provider: ApiProvider) => {
+    setState(setApiKey(provider, null));
   };
 
   const handleAddCustom = () => {
@@ -142,8 +103,7 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
     "openrouter", "deepseek", "openai", "gemini", "anthropic", "serper", "searxng",
   ];
 
-  const localEndpoints = state.customEndpoints.filter(e => e.provider === "lmstudio" || e.provider === "ollama");
-  const customEndpoints = state.customEndpoints.filter(e => e.provider !== "lmstudio" && e.provider !== "ollama");
+  const customEndpoints = state.customEndpoints;
 
   if (!isOpen) return null;
 
@@ -202,7 +162,7 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
               style={{ background: "var(--accent-glow)", border: "1px solid rgba(136, 162, 184, 0.15)" }}>
               <Zap className="w-4 h-4 flex-shrink-0" style={{ color: "var(--accent-color)" }} />
               <p className="text-[11px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-                Free tier active. OpenRouter &amp; Serper keys are pre-configured — add your own below for other providers or local models.
+                Free tier active. OpenRouter &amp; Serper keys are pre-configured — add your own below for other providers.
               </p>
             </div>
 
@@ -266,88 +226,7 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
               </section>
             )}
 
-            {/* ─── Local Models Tab ──────────────────────────────────────── */}
-            {activeTab === "local-models" && (
-              <section>
-                <SectionLabel icon={<Cpu className="w-3 h-3" />}>Local Providers</SectionLabel>
-                <div className="space-y-1.5">
-                  {(["lmstudio", "ollama"] as const).map((type) => {
-                    const info = LOCAL_PROVIDERS[type];
-                    const eps = localEndpoints.filter(e => e.provider === type);
 
-                    return (
-                      <div key={type} className="rounded-lg px-3 py-2.5"
-                        style={{ background: eps.length > 0 ? "var(--accent-glow)" : "var(--bg-tertiary)" }}>
-                        <div className="flex items-center gap-2.5">
-                          <span className="text-sm">{info.icon}</span>
-                          <span className="text-[11px] font-medium" style={{ color: "var(--text-primary)" }}>
-                            {info.name}
-                          </span>
-                          <span className="text-[10px] font-mono flex-1 text-right" style={{ color: "var(--text-tertiary)" }}>
-                            {info.defaultEndpoint}
-                          </span>
-                          <button onClick={() => handleQuickAddLocal(type)}
-                            className="flex items-center gap-1 rounded px-2 py-1 text-[10px] font-medium transition-all duration-200 active:scale-95"
-                            style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)", border: "1px solid var(--border-color)" }}>
-                            <Plus className="w-3 h-3" />
-                            {eps.length > 0 ? "Add" : "Connect"}
-                          </button>
-                        </div>
-
-                        {eps.length > 0 && (
-                          <div className="mt-2 ml-7 space-y-1.5">
-                            {eps.map(ep => {
-                              const draft = localDrafts[ep.id] || { endpoint: ep.endpoint, modelId: ep.modelId || "" };
-                              return (
-                                <div key={ep.id} className="flex items-center gap-2 rounded-md px-2.5 py-2"
-                                  style={{ background: "var(--bg-secondary)", border: "1px solid var(--border-color)" }}>
-                                  <input
-                                    ref={el => { inputRefs.current[`${ep.id}-modelId`] = el; }}
-                                    type="text"
-                                    value={draft.modelId}
-                                    placeholder={info.placeholderModel}
-                                    onChange={(e) => setLocalDrafts(prev => ({
-                                      ...prev,
-                                      [ep.id]: { ...prev[ep.id], modelId: e.target.value }
-                                    }))}
-                                    onBlur={() => handleLocalBlur(ep.id)}
-                                    onKeyDown={(e) => handleLocalKeyDown(e, ep.id)}
-                                    className="flex-1 text-[10px] font-mono outline-none bg-transparent"
-                                    style={{ color: draft.modelId ? "var(--accent-color)" : "var(--text-quaternary)" }}
-                                  />
-                                  <span className="text-[9px]" style={{ color: "var(--text-quaternary)" }}>at</span>
-                                  <input
-                                    type="text"
-                                    value={draft.endpoint}
-                                    placeholder={info.defaultEndpoint}
-                                    onChange={(e) => setLocalDrafts(prev => ({
-                                      ...prev,
-                                      [ep.id]: { ...prev[ep.id], endpoint: e.target.value }
-                                    }))}
-                                    onBlur={() => handleLocalBlur(ep.id)}
-                                    onKeyDown={(e) => handleLocalKeyDown(e, ep.id)}
-                                    className="w-36 text-[10px] font-mono outline-none bg-transparent text-right truncate"
-                                    style={{ color: "var(--text-tertiary)" }}
-                                  />
-                                  <button onClick={() => setState(removeCustomEndpoint(ep.id))}
-                                    className="p-0.5 rounded transition-colors hover:text-red-400 flex-shrink-0"
-                                    style={{ color: "var(--text-quaternary)" }}>
-                                    <X className="w-3 h-3" />
-                                  </button>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-                <p className="text-[10px] mt-3 leading-snug" style={{ color: "var(--text-tertiary)" }}>
-                  Models from LM Studio and Ollama appear here once connected. They&apos;ll also show in the model picker dropdown.
-                </p>
-              </section>
-            )}
 
             {/* ─── Custom Endpoints Tab ─────────────────────────────────── */}
             {activeTab === "custom-endpoints" && (

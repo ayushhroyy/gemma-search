@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:node": "NODE_ENV=development node --experimental-loader ./loader.cjs ./node_modules/.bin/next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"

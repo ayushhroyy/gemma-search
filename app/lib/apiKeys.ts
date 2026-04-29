@@ -24,7 +24,7 @@ export interface CustomEndpoint {
   endpoint: string;
   modelId?: string;
   apiKey?: string;
-  provider: "lmstudio" | "ollama" | "openai" | "anthropic" | "custom";
+  provider: "openai" | "anthropic" | "custom";
 }
 
 export interface ApiKeysState {
@@ -193,21 +193,4 @@ export const PROVIDER_INFO: Record<ApiProvider, {
   },
 };
 
-export const LOCAL_PROVIDERS = {
-  lmstudio: {
-    name: "LM Studio",
-    icon: "🖥️",
-    color: "#b45309",
-    defaultEndpoint: "http://localhost:1234/v1",
-    description: "Local models via LM Studio",
-    placeholderModel: "e.g. google/gemma-3-27b-it",
-  },
-  ollama: {
-    name: "Ollama",
-    icon: "🦙",
-    color: "#6366f1",
-    defaultEndpoint: "http://localhost:11434",
-    description: "Local models via Ollama",
-    placeholderModel: "e.g. llama3, mistral, codellama",
-  },
-} as const;
+

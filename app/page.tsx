@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { X, Plus, ArrowRight, Paperclip, ChevronDown, Cpu, Square, Copy, Download, Pencil, Check } from "lucide-react";
-import { useLocalModels } from "./hooks/useLocalModels";
 import { loadApiKeysState } from "./lib/apiKeys";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Header } from "./components/Header";
@@ -42,7 +41,6 @@ export default function HomePage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [modelConfig, setModelConfig] = useState<ModelConfig>(DEFAULT_MODELS);
-  const localModels = useLocalModels();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -337,7 +335,6 @@ export default function HomePage() {
           onNewChat={startNewChat}
           modelConfig={modelConfig}
           onModelChange={setModelConfig}
-          localModels={localModels}
           onShowSettings={() => setShowSettings(true)}
         />
 

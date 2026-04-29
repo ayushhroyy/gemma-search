@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 // ─── Defaults ─────────────────────────────────────────────────────────────────
 const DEFAULT_ROUTER   = "google/gemma-4-31b-it";
@@ -603,10 +603,16 @@ async function searxngSearch(terms: string[], endpoint: string, apiKey?: string)
 // ─── Scraper ──────────────────────────────────────────────────────────────────
 async function scrapeUrl(url: string): Promise<ScraperResponse> {
   const endpoint = `https://scraper.youtopialabs.workers.dev/?url=${encodeURIComponent(url)}&format=json&includeMetadata=false`;
-  const res = await fetch(endpoint, { signal: AbortSignal.timeout(15_000) });
-  if (!res.ok) throw new Error(`Scraper ${res.status} for ${url}`);
-  const data = await res.json() as ScraperResponse;
-  return { content: data.content.slice(0, 8_000), images: data.images ?? [] };
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+  try {
+    const res = await fetch(endpoint, { signal: controller.signal });
+    if (!res.ok) throw new Error(`Scraper ${res.status} for ${url}`);
+    const data = await res.json() as ScraperResponse;
+    return { content: data.content.slice(0, 8_000), images: data.images ?? [] };
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 // Extract URLs from user query text
@@ -1084,7 +1090,14 @@ Do not explain your choices.`,
       });
 
     } catch (e: unknown) {
-      await emit({ type: "error", message: e instanceof Error ? e.message : "Unknown error" });
+      console.error('Chat API Error:', e);
+      const errorMessage = e instanceof Error ? e.message : "Unknown error";
+      // Include more details for debugging
+      await emit({
+        type: "error",
+        message: errorMessage,
+        details: e instanceof Error ? e.stack : undefined
+      });
     } finally {
       await writer.close();
     }

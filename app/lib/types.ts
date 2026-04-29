@@ -2,12 +2,6 @@ import React from "react";
 
 // ─── Model Types ────────────────────────────────────────────────────────────
 
-export interface LocalModel {
-  id: string;
-  label: string;
-  provider: string;
-}
-
 export const GEMMA_MODELS = [
   { id: "google/gemma-4-31b-it",                label: "Gemma 4 31B" },
   { id: "google/gemma-4-26b-a4b-it",            label: "Gemma 4 26B" },

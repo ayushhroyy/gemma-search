@@ -13,7 +13,6 @@ interface HeaderProps {
   onNewChat?: () => void;
   modelConfig: ModelConfig;
   onModelChange: (c: ModelConfig) => void;
-  localModels?: LocalModel[];
   onShowSettings: () => void;
 }
 
@@ -25,7 +24,7 @@ export function Header({
   onNewChat,
   modelConfig,
   onModelChange,
-  localModels,
+  onModelChange,
   onShowSettings,
 }: HeaderProps) {
   return (
@@ -53,7 +52,6 @@ export function Header({
           <ModelPicker
             config={modelConfig}
             onChange={onModelChange}
-            localModels={localModels}
           />
           <button
             onClick={onShowSettings}

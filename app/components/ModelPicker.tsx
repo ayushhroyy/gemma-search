@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Cpu, ChevronDown, Check, Pencil } from "lucide-react";
-import { GEMMA_MODELS, type ModelConfig, type LocalModel } from "../lib/types";
+import { GEMMA_MODELS, type ModelConfig } from "../lib/types";
 import { loadApiKeysState, type CustomEndpoint } from "../lib/apiKeys";
 
 const AGENT_LABELS: Record<"router" | "selector" | "writer", string> = {
@@ -15,11 +15,9 @@ const AGENT_LABELS: Record<"router" | "selector" | "writer", string> = {
 export function ModelPicker({
   config,
   onChange,
-  localModels = [],
 }: {
   config: ModelConfig;
   onChange: (c: ModelConfig) => void;
-  localModels?: LocalModel[];
 }) {
   const [open, setOpen] = useState(false);
   const [showCustom, setShowCustom] = useState(false);
@@ -85,8 +83,7 @@ export function ModelPicker({
 
   const toggleUniMode = () => onChange({ ...config, uniMode: !config.uniMode });
   const isCustom = (id: string) =>
-    !GEMMA_MODELS.some(m => m.id === id) &&
-    !localModels.some(m => m.id === id);
+    !GEMMA_MODELS.some(m => m.id === id);
 
   const configuredEndpoints: CustomEndpoint[] = typeof window !== "undefined"
     ? loadApiKeysState().customEndpoints
@@ -105,13 +102,6 @@ export function ModelPicker({
           <option key={m.id} value={m.id}>{m.label}</option>
         ))}
       </optgroup>
-      {localModels.length > 0 && (
-        <optgroup label="Auto-detected">
-          {localModels.map((m) => (
-            <option key={m.id} value={m.id}>{m.label}</option>
-          ))}
-        </optgroup>
-      )}
       {endpointModels.length > 0 && (
         <optgroup label="Configured">
           {endpointModels.map((m) => (
@@ -226,9 +216,7 @@ export function ModelPicker({
       <p className="text-[10px] mt-3 leading-snug" style={{ color: "var(--text-tertiary)" }}>
         {showCustom
           ? "e.g. ollama/llama3, anthropic/claude-3-opus"
-          : localModels.length > 0
-            ? `${localModels.length} local model${localModels.length > 1 ? "s" : ""} detected`
-            : "Free tier via OpenRouter"}
+          : "Free tier via OpenRouter"}
       </p>
     </div>
   );
