@@ -15,6 +15,16 @@ import {
   MAX_SSE_BUFFER,
 } from "./lib/types";
 
+// Simple ID generator fallback for browsers without crypto.randomUUID
+const generateId = () => {
+  try {
+    if (typeof crypto !== "undefined" && (crypto as any).randomUUID) {
+      return (crypto as any).randomUUID();
+    }
+  } catch {}
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+};
+
 // ─── Home Page ──────────────────────────────────────────────────────────────────
 
 export default function HomePage() {
@@ -137,7 +147,7 @@ export default function HomePage() {
     const query = searchQuery.trim();
     const imageToSend = selectedImage;
     const userMessage: Message = {
-      id: crypto.randomUUID(),
+      id: generateId(),
       role: "user",
       content: query,
       timestamp: new Date(),
@@ -150,7 +160,7 @@ export default function HomePage() {
     setIsChatMode(true);
     setIsTyping(true);
 
-    const aiId = crypto.randomUUID();
+    const aiId = generateId();
     let initialized = false;
 
     const patchAI = (patch: Partial<Message>) =>
@@ -376,14 +386,11 @@ export default function HomePage() {
 
 function Logo() {
   return (
-    <div className="mb-8 text-center animate-fade-in-up">
+    <div className="text-center animate-fade-in-up">
       <h1 className="text-4xl sm:text-5xl font-semibold tracking-tight" style={{ color: "var(--text-primary)" }}>
         Gemma
         <span className="ml-2 font-light" style={{ color: "var(--accent-color)" }}>Search</span>
       </h1>
-      <p className="mt-2 text-xs font-medium animate-fade-in-up stagger-2" style={{ color: "var(--text-tertiary)" }}>
-        AI-powered research with multi-model agents
-      </p>
     </div>
   );
 }
@@ -407,21 +414,27 @@ interface LandingInterfaceProps {
 function LandingInterface({ searchQuery, onSearchChange, onSubmit, onKeyDown, placeholder, onSuggestionClick, isTyping, onStop, onAttach, selectedImage, onRemoveImage }: LandingInterfaceProps) {
   return (
     <main className="relative z-10 flex h-full items-center justify-center px-4 sm:px-6">
-      <div className="w-full max-w-3xl">
-        <Logo />
-        <SearchBox
-          value={searchQuery}
-          onChange={onSearchChange}
-          onSubmit={onSubmit}
-          onKeyDown={onKeyDown}
-          placeholder={placeholder}
-          isTyping={isTyping}
-          onStop={onStop}
-          onAttach={onAttach}
-          selectedImage={selectedImage}
-          onRemoveImage={onRemoveImage}
-        />
-        <SuggestedQueries onSelect={onSuggestionClick} />
+      <div className="relative w-full max-w-3xl flex items-center justify-center">
+        <div className="absolute -top-[clamp(4rem,8vh,6rem)] left-0 right-0 flex justify-center pointer-events-none">
+          <Logo />
+        </div>
+        <div className="relative w-full">
+          <SearchBox
+            value={searchQuery}
+            onChange={onSearchChange}
+            onSubmit={onSubmit}
+            onKeyDown={onKeyDown}
+            placeholder={placeholder}
+            isTyping={isTyping}
+            onStop={onStop}
+            onAttach={onAttach}
+            selectedImage={selectedImage}
+            onRemoveImage={onRemoveImage}
+          />
+        </div>
+        <div className="absolute -bottom-[clamp(2.5rem,5vh,4rem)] left-0 right-0 flex justify-center pointer-events-none">
+          <SuggestedQueries onSelect={onSuggestionClick} />
+        </div>
       </div>
     </main>
   );

@@ -4,6 +4,16 @@ import React, { useState, useEffect, useMemo } from "react";
 import { ChevronDown } from "lucide-react";
 import mermaid from "mermaid";
 
+// Simple ID generator fallback for browsers without crypto.randomUUID
+const generateId = () => {
+  try {
+    if (typeof crypto !== "undefined" && (crypto as any).randomUUID) {
+      return (crypto as any).randomUUID();
+    }
+  } catch {}
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+};
+
 // ─── Mermaid ──────────────────────────────────────────────────────────────────
 
 let mermaidInitialized = false;
@@ -255,7 +265,7 @@ export function MarkdownContent({ content }: { content: string }) {
   let codeLines: string[] = [];
   let inCode = false;
   let codeLang = "";
-  let mermaidId = useMemo(() => `mermaid-${crypto.randomUUID().slice(0, 8)}`, []);
+  let mermaidId = useMemo(() => `mermaid-${generateId().slice(0, 8)}`, []);
 
   let tableLines: string[] = [];
   let inTable = false;

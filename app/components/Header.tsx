@@ -29,7 +29,7 @@ export function Header({
   onShowSettings,
 }: HeaderProps) {
   return (
-    <header className="header-glass fixed top-0 left-0 right-0 z-20 px-3 sm:px-6 py-3 sm:py-4">
+    <header className="fixed top-0 left-0 right-0 z-20 px-3 sm:px-6 py-3 sm:py-4" style={{ background: "transparent" }}>
       <div className="flex items-center justify-between max-w-screen-xl mx-auto">
         <div className="flex items-center gap-2">
           {isChatMode && onNewChat && (

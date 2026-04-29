@@ -9,17 +9,17 @@ export interface LocalModel {
 }
 
 export const GEMMA_MODELS = [
-  { id: "google/gemma-3-27b-it:free",           label: "Gemma 3 27B (Free)" },
-  { id: "deepseek/deepseek-r1:free",            label: "DeepSeek R1 (Free)" },
-  { id: "deepseek/deepseek-chat-v3-0324:free",  label: "DeepSeek V3 (Free)" },
-  { id: "qwen/qwen3-32b:free",                  label: "Qwen 3 32B (Free)" },
-  { id: "google/gemma-3-12b-it:free",           label: "Gemma 3 12B (Free)" },
-  { id: "mistralai/mistral-small-3.1-24b-instruct:free", label: "Mistral Small 3.1 (Free)" },
-  { id: "meta-llama/llama-4-maverick:free",     label: "Llama 4 Maverick (Free)" },
-  { id: "meta-llama/llama-4-scout:free",        label: "Llama 4 Scout (Free)" },
-  { id: "google/gemini-2.0-flash-exp:free",     label: "Gemini 2.0 Flash (Free)" },
-  { id: "qwen/qwen3-235b-a22b:free",            label: "Qwen 3 235B MoE (Free)" },
-  { id: "rekaai/reka-flash-3:free",             label: "Reka Flash 3 (Free)" },
+  { id: "google/gemma-4-31b-it",                label: "Gemma 4 31B" },
+  { id: "google/gemma-4-26b-a4b-it",            label: "Gemma 4 26B" },
+  { id: "google/gemma-3-27b-it",                label: "Gemma 3 27B" },
+  { id: "google/gemma-3-12b-it",                label: "Gemma 3 12B" },
+  { id: "mistralai/mistral-small-3.2-24b-instruct", label: "Mistral Small 24B" },
+  { id: "mistralai/ministral-14b-2512",          label: "Ministral 14B" },
+  { id: "mistralai/ministral-8b-2512",           label: "Ministral 8B" },
+  { id: "mistralai/ministral-3b-2512",           label: "Ministral 3B" },
+  { id: "qwen/qwen3.5-9b",                      label: "Qwen 3.5 9B" },
+  { id: "qwen/qwen3-32b",                        label: "Qwen 3 32B" },
+  { id: "qwen/qwen3-30b-a3b-instruct-2507",     label: "Qwen 3 30B MoE" },
 ] as const;
 
 export type GemmaModelId = (typeof GEMMA_MODELS)[number]["id"];
@@ -33,11 +33,11 @@ export interface ModelConfig {
 }
 
 export const DEFAULT_MODELS: ModelConfig = {
-  router:   "google/gemma-3-27b-it:free",
-  selector: "google/gemma-3-27b-it:free",
-  writer:   "google/gemma-3-27b-it:free",
-  uniMode:  true,
-  uni:      "google/gemma-3-27b-it:free",
+  router:   "google/gemma-4-31b-it",
+  selector: "google/gemma-4-26b-a4b-it",
+  writer:   "qwen/qwen3.5-9b",
+  uniMode:  false,
+  uni:      "google/gemma-4-31b-it",
 };
 
 // ─── Message Types ──────────────────────────────────────────────────────────
